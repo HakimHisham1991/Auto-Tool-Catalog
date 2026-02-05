@@ -1,0 +1,147 @@
+using System.Net;
+using System.Text.RegularExpressions;
+using AutoToolCatalog.Models;
+using HtmlAgilityPack;
+
+namespace AutoToolCatalog.Services.SupplierParsers;
+
+public abstract class BaseSupplierParser : ISupplierParser
+{
+    protected readonly HttpClient HttpClient;
+    private const int MaxRetries = 3;
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
+
+    protected BaseSupplierParser(IHttpClientFactory httpClientFactory)
+    {
+        HttpClient = httpClientFactory.CreateClient(SupplierName);
+    }
+
+    public abstract string SupplierName { get; }
+    protected abstract string SearchBaseUrl { get; }
+
+    public async Task<ToolSpecResult> FetchSpecsAsync(ToolRecord record, CancellationToken ct = default)
+    {
+        for (var attempt = 1; attempt <= MaxRetries; attempt++)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(Timeout);
+                return await FetchSpecsCoreAsync(record, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                if (attempt == MaxRetries)
+                    return ToolSpecResult.Failed("Timeout");
+            }
+            catch (HttpRequestException ex)
+            {
+                if (attempt == MaxRetries)
+                    return ToolSpecResult.Failed($"Website error: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                if (attempt == MaxRetries)
+                    return ToolSpecResult.Failed(ex.Message);
+            }
+
+            await Task.Delay(500 * attempt, ct);
+        }
+
+        return ToolSpecResult.Failed("Max retries exceeded");
+    }
+
+    protected abstract Task<ToolSpecResult> FetchSpecsCoreAsync(ToolRecord record, CancellationToken ct);
+
+    protected async Task<HtmlDocument?> FetchHtmlAsync(string url, CancellationToken ct)
+    {
+        var response = await HttpClient.GetAsync(url, ct);
+        if (response.StatusCode != HttpStatusCode.OK)
+            return null;
+        var html = await response.Content.ReadAsStringAsync(ct);
+        var doc = new HtmlDocument();
+        doc.LoadHtml(html);
+        return doc;
+    }
+
+    protected static string? ExtractSpec(HtmlDocument doc, string[] specCodes)
+    {
+        // 1. Table rows: <tr><td>DC</td><td>10</td></tr> or <tr><th>DC</th><td>10</td></tr>
+        var rows = doc.DocumentNode.SelectNodes("//table//tr");
+        if (rows != null)
+        {
+            foreach (var row in rows)
+            {
+                var cells = row.SelectNodes(".//td|.//th");
+                if (cells == null || cells.Count < 2) continue;
+                var header = cells[0].InnerText.Trim().ToUpperInvariant();
+                var value = cells[1].InnerText.Trim();
+                foreach (var code in specCodes)
+                {
+                    if (header.Contains(code.ToUpperInvariant()))
+                        return NormalizeValue(value);
+                }
+            }
+        }
+
+        // 2. Definition lists: <dl><dt>DC</dt><dd>10</dd></dl>
+        var dts = doc.DocumentNode.SelectNodes("//dt");
+        if (dts != null)
+        {
+            foreach (var dt in dts)
+            {
+                var header = dt.InnerText.Trim().ToUpperInvariant();
+                var dd = dt.NextSibling;
+                while (dd != null && dd.Name != "dd") dd = dd.NextSibling;
+                var value = dd?.InnerText.Trim() ?? "";
+                foreach (var code in specCodes)
+                {
+                    if (header.Contains(code.ToUpperInvariant()))
+                        return NormalizeValue(value);
+                }
+            }
+        }
+
+        // 3. Div/spans: label + value pairs (e.g. "DC" or "Diameter" in one element, "10" in next)
+        var labels = doc.DocumentNode.SelectNodes("//*[contains(@class,'label') or contains(@class,'name') or contains(@class,'spec')]");
+        if (labels != null)
+        {
+            foreach (var label in labels)
+            {
+                var header = label.InnerText.Trim().ToUpperInvariant();
+                var value = label.NextSibling?.InnerText.Trim()
+                    ?? label.ParentNode?.SelectSingleNode(".//*[contains(@class,'value') or contains(@class,'val')]")?.InnerText.Trim()
+                    ?? "";
+                foreach (var code in specCodes)
+                {
+                    if (header.Contains(code.ToUpperInvariant()) && !string.IsNullOrWhiteSpace(value))
+                        return NormalizeValue(value);
+                }
+            }
+        }
+
+        // 4. Regex fallback: find "DC 10" or "Diameter: 10 mm" in raw text
+        var bodyText = doc.DocumentNode.InnerText;
+        foreach (var code in specCodes)
+        {
+            var pattern = $@"(?:{Regex.Escape(code)}|diameter|length|radius|shank|flute|teeth)[\s:]*([0-9]+[,.]?[0-9]*)\s*(?:mm)?";
+            var m = Regex.Match(bodyText, pattern, RegexOptions.IgnoreCase);
+            if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
+                return NormalizeValue(m.Groups[1].Value.Trim() + " mm");
+        }
+
+        return null;
+    }
+
+    protected static string NormalizeValue(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "#NA";
+        value = value.Trim();
+        if (value.Contains("in") && !value.Contains("mm"))
+        {
+            if (double.TryParse(value.Replace("in", "").Replace("\"", "").Trim(), out var inches))
+                return $"{inches * 25.4:F2} mm";
+        }
+        return value;
+    }
+}

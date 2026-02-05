@@ -1,0 +1,165 @@
+@page
+@model AutoToolCatalog.Pages.IndexModel
+@{
+    ViewData["Title"] = "Tool Catalog Enricher";
+}
+
+<div class="mb-4">
+    <h1>Tool Catalog Enricher</h1>
+    <p class="text-muted">Import Excel, fetch specs from supplier sites, export enriched data.</p>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-auto">
+                <label class="form-label">Import Excel</label>
+                <input type="file" id="fileInput" class="form-control" accept=".xlsx" />
+            </div>
+            <div class="col-auto d-flex align-items-end">
+                <button type="button" id="btnImport" class="btn btn-primary">Import Excel</button>
+            </div>
+            <div class="col-auto d-flex align-items-end">
+                <a href="/api/sample" class="btn btn-outline-secondary">Download Sample</a>
+            </div>
+            <div class="col-auto d-flex align-items-end">
+                <button type="button" id="btnProcess" class="btn btn-success" disabled>Process / Fetch Specs</button>
+            </div>
+            <div class="col-auto d-flex align-items-end">
+                <button type="button" id="btnExport" class="btn btn-outline-primary" disabled>Export Completed Excel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="progressSection" class="card mb-4" style="display: none;">
+    <div class="card-header">Progress</div>
+    <div class="card-body">
+        <div class="progress mb-2" style="height: 24px;">
+            <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
+        </div>
+        <div class="row small">
+            <div class="col-md-2">Success: <strong id="successCount">0</strong></div>
+            <div class="col-md-2">Failed: <strong id="failCount">0</strong></div>
+            <div class="col-md-8">Current: <span id="currentItem" class="text-muted">—</span></div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Data Preview</span>
+        <span id="recordCount" class="badge bg-secondary">0 rows</span>
+    </div>
+    <div class="card-body p-0 overflow-auto" style="max-height: 400px;">
+        <table class="table table-sm table-striped mb-0">
+            <thead class="table-light sticky-top">
+                <tr>
+                    <th>No.</th>
+                    <th>Tool Description</th>
+                    <th>Type</th>
+                    <th>Shank/Bore Ø</th>
+                    <th>Tool Ø</th>
+                    <th>Corner rad</th>
+                    <th>Flute length</th>
+                    <th>OAL</th>
+                    <th>Edge count</th>
+                    <th>Supplier</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="10" class="text-center text-muted">Import an Excel file to begin.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script>
+        let sessionId = null;
+        let pollInterval = null;
+
+        document.getElementById('btnImport').addEventListener('click', async () => {
+            const input = document.getElementById('fileInput');
+            if (!input.files?.length) {
+                alert('Please select an Excel file.');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+            try {
+                const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.title || data.detail || 'Upload failed');
+                sessionId = data.sessionId;
+                document.getElementById('btnProcess').disabled = false;
+                document.getElementById('btnExport').disabled = false;
+                document.getElementById('recordCount').textContent = data.count + ' rows';
+                await loadTable();
+            } catch (e) {
+                alert('Upload failed: ' + e.message);
+            }
+        });
+
+        document.getElementById('btnProcess').addEventListener('click', async () => {
+            if (!sessionId) return;
+            document.getElementById('btnProcess').disabled = true;
+            document.getElementById('progressSection').style.display = 'block';
+            try {
+                const res = await fetch('/api/process/' + sessionId, { method: 'POST' });
+                if (!res.ok) throw new Error('Failed to start processing');
+                pollInterval = setInterval(pollProgress, 500);
+                pollProgress();
+            } catch (e) {
+                alert('Error: ' + e.message);
+                document.getElementById('btnProcess').disabled = false;
+            }
+        });
+
+        async function pollProgress() {
+            if (!sessionId) return;
+            const res = await fetch('/api/progress/' + sessionId);
+            const p = await res.json();
+            document.getElementById('progressBar').style.width = p.percentComplete + '%';
+            document.getElementById('progressBar').textContent = p.percentComplete + '%';
+            document.getElementById('successCount').textContent = p.successCount ?? 0;
+            document.getElementById('failCount').textContent = p.failCount ?? 0;
+            document.getElementById('currentItem').textContent = p.currentItem || '—';
+            if (p.isFinished) {
+                clearInterval(pollInterval);
+                document.getElementById('btnProcess').disabled = false;
+                loadTable();
+            }
+        }
+
+        async function loadTable() {
+            if (!sessionId) return;
+            const res = await fetch('/api/records/' + sessionId);
+            const rows = await res.json();
+            const tbody = document.getElementById('tableBody');
+            if (!rows || rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No data.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map(r => `<tr>
+                <td>${r.no}</td>
+                <td>${escapeHtml(r.toolDescription)}</td>
+                <td>${escapeHtml(r.typeOfTool)}</td>
+                <td>${escapeHtml(r.shankBoreDiameter || '-')}</td>
+                <td>${escapeHtml(r.toolDiameter || '-')}</td>
+                <td>${escapeHtml(r.cornerRad || '-')}</td>
+                <td>${escapeHtml(r.fluteCuttingEdgeLength || '-')}</td>
+                <td>${escapeHtml(r.overallLength || '-')}</td>
+                <td>${escapeHtml(r.peripheralCuttingEdgeCount || '-')}</td>
+                <td>${escapeHtml(r.procurementChannel)}</td>
+            </tr>`).join('');
+        }
+        function escapeHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+        document.getElementById('btnExport').addEventListener('click', () => {
+            if (!sessionId) return;
+            window.location.href = '/api/export/' + sessionId;
+        });
+    </script>
+}
