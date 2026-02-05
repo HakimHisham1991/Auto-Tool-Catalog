@@ -47,14 +47,14 @@ public class WalterParser : BaseSupplierParser
             result.Spec3 = ExtractSpec(doc, new[] { "R", "corner", "radius" }) ?? "#NA";
             result.Spec4 = ExtractSpec(doc, new[] { "Z", "flute", "teeth" }) ?? "#NA";
             result.Spec5 = ExtractSpec(doc, new[] { "l1", "length", "overall" }) ?? "#NA";
-            result.Spec6 = ExtractSpec(doc, new[] { "d1", "shank", "bore" }) ?? "#NA";
+            result.Spec6 = ExtractSpec(doc, new[] { "d1", "Connection diameter", "Shank diameter (h6)", "shank", "bore" }) ?? "#NA";
         }
         else
         {
             result.Spec1 = ExtractSpec(doc, new[] { "Dc", "diameter" }) ?? "#NA";
             result.Spec2 = ExtractSpec(doc, new[] { "LC", "length", "flute" }) ?? "#NA";
             result.Spec5 = ExtractSpec(doc, new[] { "l1", "length", "overall" }) ?? "#NA";
-            result.Spec6 = ExtractSpec(doc, new[] { "d1", "shank", "diameter" }) ?? "#NA";
+            result.Spec6 = ExtractSpec(doc, new[] { "d1", "Shank diameter (h6)", "Connection diameter", "shank", "diameter" }) ?? "#NA";
         }
 
         return result;

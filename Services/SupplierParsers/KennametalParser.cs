@@ -47,14 +47,14 @@ public class KennametalParser : BaseSupplierParser
             result.Spec3 = ExtractSpec(doc, new[] { "Re", "corner", "radius" }) ?? "#NA";
             result.Spec4 = ExtractSpec(doc, new[] { "Z", "flute", "teeth" }) ?? "#NA";
             result.Spec5 = ExtractSpec(doc, new[] { "l1", "length", "overall" }) ?? "#NA";
-            result.Spec6 = ExtractSpec(doc, new[] { "D", "shank", "d1" }) ?? "#NA";
+            result.Spec6 = ExtractSpec(doc, new[] { "Adapter / Shank / Bore Diameter", "Adapter", "Shank", "Bore Diameter", "D", "d1" }) ?? "#NA";
         }
         else
         {
             result.Spec1 = ExtractSpec(doc, new[] { "D1", "D", "diameter" }) ?? "#NA";
             result.Spec2 = ExtractSpec(doc, new[] { "L4", "length", "flute" }) ?? "#NA";
             result.Spec5 = ExtractSpec(doc, new[] { "L", "l1", "length", "overall" }) ?? "#NA";
-            result.Spec6 = ExtractSpec(doc, new[] { "D", "d1", "shank" }) ?? "#NA";
+            result.Spec6 = ExtractSpec(doc, new[] { "Adapter / Shank / Bore Diameter", "Adapter", "Shank", "Bore Diameter", "D", "d1" }) ?? "#NA";
         }
 
         return result;

@@ -130,6 +130,17 @@ public abstract class BaseSupplierParser : ISupplierParser
                 return NormalizeValue(m.Groups[1].Value.Trim() + " mm");
         }
 
+        // 5. Relaxed regex for Column 4 (shank/connection) when label has extra text (e.g. "Shank diameter 6.00 mm")
+        var shankKeywords = new[] { "DMM", "shank", "bore", "DCONMS", "Connection diameter machine side", "Adapter / Shank / Bore Diameter", "Shank diameter", "Connection diameter", "Shank diameter (h6)", "Adapter", "Bore Diameter" };
+        var hasShankCode = specCodes.Any(c => shankKeywords.Any(k => c.Contains(k, StringComparison.OrdinalIgnoreCase) || string.Equals(c, k, StringComparison.OrdinalIgnoreCase)));
+        if (hasShankCode)
+        {
+            var relaxedPattern = @"(?:DMM|shank|bore|DCONMS|Connection diameter machine side|Adapter\s*/\s*Shank\s*/\s*Bore\s*Diameter|Shank diameter|Connection diameter|Shank diameter \(h6\)|Adapter|Bore Diameter)\s+(?:\w+\s+)*([0-9]+[,.]?[0-9]*)\s*(?:mm)?";
+            var m = Regex.Match(bodyText, relaxedPattern, RegexOptions.IgnoreCase);
+            if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
+                return NormalizeValue(m.Groups[1].Value.Trim() + " mm");
+        }
+
         return null;
     }
 

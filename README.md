@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Auto Tool Catalog Enricher
 
 A web application that automatically enriches a tooling Excel database with technical specifications by scraping official supplier websites.
@@ -158,3 +159,7 @@ builder.Services.AddScoped<ISupplierParser, NewSupplierParser>();
 ## License
 
 MIT
+=======
+# Auto-Tool-Catalog
+Auto Tool Spec Retrieval from Supplier Website
+>>>>>>> 8f82939c3af6a828f94d06e359f43c47743f92bc

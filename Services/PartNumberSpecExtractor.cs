@@ -61,7 +61,7 @@ public static class PartNumberSpecExtractor
         return result;
     }
 
-    // SECO Endmill: JS534060D1B.0Z4-NXT -> 060 = 6.0mm diameter, Z4 = 4 flutes
+    // SECO Endmill: JS534060D1B.0Z4-NXT -> 060 = 6.0mm diameter, Z4 = 4 flutes, D1B = 1mm corner, shank often = tool dia
     private static void ExtractSecoEndmill(string desc, ToolSpecResult r)
     {
         var m = Regex.Match(desc, @"JS\d{3}(\d{2,3})", RegexOptions.IgnoreCase);
@@ -70,26 +70,36 @@ public static class PartNumberSpecExtractor
         m = Regex.Match(desc, @"[Zz]-?(\d)", RegexOptions.IgnoreCase);
         if (m.Success)
             r.Spec4 = m.Groups[1].Value;
-        m = Regex.Match(desc, @"[Dd]\d[Bb]\.(\d)");
-        if (m.Success && m.Groups[1].Value != "0")
-            r.Spec3 = m.Groups[1].Value + " mm";
+        // D1B = 1 mm corner radius (digit before B); D2B = 2 mm, etc.
+        m = Regex.Match(desc, @"[Dd](\d)[Bb](?:\.\d)?", RegexOptions.IgnoreCase);
+        if (m.Success && int.TryParse(m.Groups[1].Value, out var corner) && corner > 0)
+            r.Spec3 = $"{corner} mm";
+        if (string.IsNullOrEmpty(r.Spec3) || r.Spec3 == "#NA")
+        {
+            m = Regex.Match(desc, @"[Dd]\d[Bb]\.(\d)");
+            if (m.Success && m.Groups[1].Value != "0")
+                r.Spec3 = m.Groups[1].Value + " mm";
+        }
     }
 
-    // Kennametal Endmill: H1TE4RA0400N006HBR025M -> 0400=4mm dia, HAR025=0.25 corner
+    // Kennametal Endmill: H1TE4RA0400N006HBR025M -> 0400=4mm dia, N006=6mm shank, HBR025=0.25 corner
     private static void ExtractKennametalEndmill(string desc, ToolSpecResult r)
     {
         var m = Regex.Match(desc, @"H1TE4RA(\d{4})", RegexOptions.IgnoreCase);
         if (m.Success && int.TryParse(m.Groups[1].Value, out var n))
             r.Spec1 = n >= 100 ? $"{n / 100.0:F1} mm" : $"{n} mm";
-        m = Regex.Match(desc, @"HAR(\d{2,3})", RegexOptions.IgnoreCase);
+        m = Regex.Match(desc, @"(?:HAR|HBR)(\d{2,3})", RegexOptions.IgnoreCase);
         if (m.Success && int.TryParse(m.Groups[1].Value, out var corner))
-            r.Spec3 = corner >= 100 ? $"{corner / 100.0:F2} mm" : $"{corner / 100.0:F2} mm";
+            r.Spec3 = $"{corner / 100.0:F2} mm";
+        m = Regex.Match(desc, @"N0?(\d{1,3})\D", RegexOptions.IgnoreCase);
+        if (m.Success && int.TryParse(m.Groups[1].Value, out var shank) && shank >= 3 && shank <= 32)
+            r.Spec6 = $"{shank} mm";
         m = Regex.Match(desc, @"[LN]0?(\d{2,3})", RegexOptions.IgnoreCase);
         if (m.Success && int.TryParse(m.Groups[1].Value, out var len) && len >= 20 && len <= 200)
             r.Spec5 = $"{len} mm";
     }
 
-    // Sandvik Endmill: 1K344-1300-XD 1730 -> 1300=13mm diameter
+    // Sandvik Endmill: 1K344-1300-XD 1730 -> 1300=13mm diameter; shank often = tool dia
     private static void ExtractSandvikEndmill(string desc, ToolSpecResult r)
     {
         var m = Regex.Match(desc, @"1K\d{3}-(\d{3,4})", RegexOptions.IgnoreCase);
@@ -100,7 +110,7 @@ public static class PartNumberSpecExtractor
             r.Spec5 = $"{len} mm";
     }
 
-    // Walter Endmill: H3094718-6-100 -> 6=6mm dia, 100=100mm length
+    // Walter Endmill: H3094718-6-100 -> 6=6mm dia, 100=100mm length; shank often = tool dia
     private static void ExtractWalterEndmill(string desc, ToolSpecResult r)
     {
         var m = Regex.Match(desc, @"-(\d{1,2})-(\d{2,3})(?:-|$|\.)", RegexOptions.IgnoreCase);
@@ -116,7 +126,7 @@ public static class PartNumberSpecExtractor
             r.Spec4 = m.Groups[1].Value;
     }
 
-    // SECO Drill: SD1103-1000-035-10R1 -> 1000=10mm?, 035=3.5mm?
+    // SECO Drill: SD1103-1000-035-10R1 -> 1000=10mm, -10R1=10mm shank
     private static void ExtractSecoDrill(string desc, ToolSpecResult r)
     {
         var m = Regex.Match(desc, @"SD\d+-(\d{3,4})-(\d{2,3})", RegexOptions.IgnoreCase);
@@ -127,6 +137,9 @@ public static class PartNumberSpecExtractor
             if (int.TryParse(m.Groups[2].Value, out var len) && len >= 10)
                 r.Spec5 = $"{len} mm";
         }
+        m = Regex.Match(desc, @"-(\d{1,2})R\d", RegexOptions.IgnoreCase);
+        if (m.Success && int.TryParse(m.Groups[1].Value, out var shank) && shank >= 3 && shank <= 32)
+            r.Spec6 = $"{shank} mm";
     }
 
     // Kennametal Drill: B051F06000CPG -> 06=6mm
@@ -137,7 +150,7 @@ public static class PartNumberSpecExtractor
             r.Spec1 = $"{d} mm";
     }
 
-    // Sandvik Drill: 462.1-0803-024A1 -> 0803=8.03mm, 024=24mm length?
+    // Sandvik Drill: 462.1-0803-024A1 -> 0803=8.03mm, 024=24mm length; shank often = tool dia
     private static void ExtractSandvikDrill(string desc, ToolSpecResult r)
     {
         var m = Regex.Match(desc, @"(\d{4})-(\d{2,3})", RegexOptions.IgnoreCase);
@@ -150,7 +163,7 @@ public static class PartNumberSpecExtractor
         }
     }
 
-    // Walter Drill: DC180-03-04.000A1 -> 03=3mm?, 04=4mm?
+    // Walter Drill: DC180-03-04.000A1 -> 03=3mm, 04=flute length; shank often = tool dia
     private static void ExtractWalterDrill(string desc, ToolSpecResult r)
     {
         var m = Regex.Match(desc, @"DC\d+-(\d{2})-(\d{2})", RegexOptions.IgnoreCase);

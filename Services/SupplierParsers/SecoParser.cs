@@ -55,14 +55,14 @@ public class SecoParser : BaseSupplierParser
             result.Spec3 = ExtractSpec(doc, new[] { "RE", "corner", "radius" }) ?? "#NA";
             result.Spec4 = ExtractSpec(doc, new[] { "PCEDC", "Z", "flute", "teeth" }) ?? "#NA";
             result.Spec5 = ExtractSpec(doc, new[] { "OAL", "length", "overall" }) ?? "#NA";
-            result.Spec6 = ExtractSpec(doc, new[] { "DMM", "shank", "bore" }) ?? "#NA";
+            result.Spec6 = ExtractSpec(doc, new[] { "DMM", "Shank diameter", "shank", "bore" }) ?? "#NA";
         }
         else
         {
             result.Spec1 = ExtractSpec(doc, new[] { "DC", "diameter" }) ?? "#NA";
             result.Spec2 = ExtractSpec(doc, new[] { "LU", "length", "flute" }) ?? "#NA";
             result.Spec5 = ExtractSpec(doc, new[] { "OAL", "length", "overall" }) ?? "#NA";
-            result.Spec6 = ExtractSpec(doc, new[] { "DCONMS", "shank", "diameter" }) ?? "#NA";
+            result.Spec6 = ExtractSpec(doc, new[] { "DCONMS", "Connection diameter machine side", "shank", "diameter" }) ?? "#NA";
         }
 
         return result;

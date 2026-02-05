@@ -86,3 +86,4 @@ C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\obj\Debug\net8.0\r
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\obj\Debug\net8.0\AutoToolCatalog.pdb
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\obj\Debug\net8.0\AutoToolCatalog.genruntimeconfig.cache
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\obj\Debug\net8.0\ref\AutoToolCatalog.dll
+C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\obj\Debug\net8.0\AutoToolCatalog.sourcelink.json
