@@ -51,10 +51,10 @@ public class SecoParser : BaseSupplierParser
         if (record.IsEndmill)
         {
             result.Spec1 = ExtractSpec(doc, new[] { "DC", "diameter" }) ?? "#NA";
-            result.Spec2 = ExtractSpec(doc, new[] { "APMX", "APmax", "cutting length" }) ?? "#NA";
+            result.Spec2 = ExtractSpec(doc, new[] { "APMXS", "APMX", "APmax", "Depth of cut maximum", "cutting length" }) ?? "#NA";
             result.Spec3 = ExtractSpec(doc, new[] { "RE", "corner", "radius" }) ?? "#NA";
             result.Spec4 = ExtractSpec(doc, new[] { "PCEDC", "Z", "flute", "teeth" }) ?? "#NA";
-            result.Spec5 = ExtractSpec(doc, new[] { "OAL", "length", "overall" }) ?? "#NA";
+            result.Spec5 = ExtractSpec(doc, new[] { "OAL", "Overall length", "length", "overall" }) ?? "#NA";
             result.Spec6 = ExtractSpec(doc, new[] { "DMM", "Shank diameter", "shank", "bore" }) ?? "#NA";
         }
         else

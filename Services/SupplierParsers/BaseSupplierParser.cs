@@ -7,6 +7,7 @@ namespace AutoToolCatalog.Services.SupplierParsers;
 
 public abstract class BaseSupplierParser : ISupplierParser
 {
+    private static readonly Regex MeasurementPattern = new(@"\d+[,.]?\d*\s*(?:mm|in)", RegexOptions.IgnoreCase);
     protected readonly HttpClient HttpClient;
     private const int MaxRetries = 3;
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
@@ -66,8 +67,42 @@ public abstract class BaseSupplierParser : ISupplierParser
 
     protected static string? ExtractSpec(HtmlDocument doc, string[] specCodes)
     {
-        // 1. Table rows: <tr><td>DC</td><td>10</td></tr> or <tr><th>DC</th><td>10</td></tr>
+        // 1. Table rows: <tr><td>DC</td><td>10</td></tr> or 3-col: <tr><td>APMXS</td><td>Depth of cut max...</td><td>18.00 mm</td></tr>
         var rows = doc.DocumentNode.SelectNodes("//table//tr");
+        if (rows != null)
+        {
+            foreach (var row in rows)
+            {
+                var cells = row.SelectNodes(".//td|.//th");
+                if (cells == null || cells.Count < 2) continue;
+                string? value = null;
+                foreach (var code in specCodes)
+                {
+                    var codeUpper = code.ToUpperInvariant();
+                    for (var i = 0; i < cells.Count; i++)
+                    {
+                        var cellText = cells[i].InnerText.Trim();
+                        if (!cellText.ToUpperInvariant().Contains(codeUpper)) continue;
+                        // Found code in this cell; value is in a sibling cell with a measurement
+                        for (var j = 0; j < cells.Count; j++)
+                        {
+                            if (j == i) continue;
+                            var siblingText = cells[j].InnerText.Trim();
+                            if (MeasurementPattern.IsMatch(siblingText))
+                            {
+                                value = siblingText;
+                                break;
+                            }
+                        }
+                        if (value != null) break;
+                    }
+                    if (value != null) return NormalizeValue(value);
+                }
+            }
+        }
+
+        // 1b. Simpler table: header in first cell, value in second (or last cell with measurement)
+        rows = doc.DocumentNode.SelectNodes("//table//tr");
         if (rows != null)
         {
             foreach (var row in rows)
@@ -76,6 +111,14 @@ public abstract class BaseSupplierParser : ISupplierParser
                 if (cells == null || cells.Count < 2) continue;
                 var header = cells[0].InnerText.Trim().ToUpperInvariant();
                 var value = cells[1].InnerText.Trim();
+                if (cells.Count >= 3)
+                {
+                    for (var i = 1; i < cells.Count; i++)
+                    {
+                        var cellText = cells[i].InnerText.Trim();
+                        if (MeasurementPattern.IsMatch(cellText)) { value = cellText; break; }
+                    }
+                }
                 foreach (var code in specCodes)
                 {
                     if (header.Contains(code.ToUpperInvariant()))
@@ -120,17 +163,27 @@ public abstract class BaseSupplierParser : ISupplierParser
             }
         }
 
-        // 4. Regex fallback: find "DC 10" or "Diameter: 10 mm" in raw text
+        // 4. Regex fallback: find "DC 10" or "Diameter: 10 mm" in raw text (code immediately followed by number)
         var bodyText = doc.DocumentNode.InnerText;
         foreach (var code in specCodes)
         {
-            var pattern = $@"(?:{Regex.Escape(code)}|diameter|length|radius|shank|flute|teeth)[\s:]*([0-9]+[,.]?[0-9]*)\s*(?:mm)?";
+            var pattern = $@"(?:{Regex.Escape(code)})[\s:]+([0-9]+[,.]?[0-9]*)\s*(?:mm)?";
             var m = Regex.Match(bodyText, pattern, RegexOptions.IgnoreCase);
             if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
                 return NormalizeValue(m.Groups[1].Value.Trim() + " mm");
         }
 
-        // 5. Relaxed regex for Column 4 (shank/connection) when label has extra text (e.g. "Shank diameter 6.00 mm")
+        // 5. Label then next measurement: "APMXS ... 18.00 mm" or "OAL ... 57.00 mm" - find code then next number+mm within 200 chars
+        foreach (var code in specCodes)
+        {
+            var escaped = Regex.Escape(code);
+            var pattern = $@"(?:{escaped})[\s\S]{{0,200}}?([0-9]+[,.]?[0-9]*)\s*(?:mm)";
+            var m = Regex.Match(bodyText, pattern, RegexOptions.IgnoreCase);
+            if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
+                return NormalizeValue(m.Groups[1].Value.Trim() + " mm");
+        }
+
+        // 6. Relaxed regex for Column 4 (shank/connection) when label has extra text (e.g. "Shank diameter 6.00 mm")
         var shankKeywords = new[] { "DMM", "shank", "bore", "DCONMS", "Connection diameter machine side", "Adapter / Shank / Bore Diameter", "Shank diameter", "Connection diameter", "Shank diameter (h6)", "Adapter", "Bore Diameter" };
         var hasShankCode = specCodes.Any(c => shankKeywords.Any(k => c.Contains(k, StringComparison.OrdinalIgnoreCase) || string.Equals(c, k, StringComparison.OrdinalIgnoreCase)));
         if (hasShankCode)

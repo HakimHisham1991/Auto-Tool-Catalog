@@ -46,11 +46,8 @@ public class ScraperService : IScraperService
                 else
                 {
                     var result = await parser.FetchSpecsAsync(record, ct);
-                    if (IsAllNa(result))
-                    {
-                        var partResult = PartNumberSpecExtractor.Extract(record);
-                        result = MergeResults(result, partResult);
-                    }
+                    var partResult = PartNumberSpecExtractor.Extract(record);
+                    result = MergeResults(result, partResult);
                     ApplyResult(record, result);
                     if (result.Success || HasAnyValue(result))
                         Interlocked.Increment(ref successCount);
