@@ -46,8 +46,6 @@ public class ScraperService : IScraperService
                 else
                 {
                     var result = await parser.FetchSpecsAsync(record, ct);
-                    var partResult = PartNumberSpecExtractor.Extract(record);
-                    result = MergeResults(result, partResult);
                     ApplyResult(record, result);
                     if (result.Success || HasAnyValue(result))
                         Interlocked.Increment(ref successCount);
@@ -99,14 +97,6 @@ public class ScraperService : IScraperService
         record.PeripheralCuttingEdgeCount = string.IsNullOrEmpty(record.PeripheralCuttingEdgeCount) ? result.Spec4 : record.PeripheralCuttingEdgeCount;
     }
 
-    private static bool IsAllNa(ToolSpecResult r) =>
-        (r.Spec1 == "#NA" || string.IsNullOrEmpty(r.Spec1)) &&
-        (r.Spec2 == "#NA" || string.IsNullOrEmpty(r.Spec2)) &&
-        (r.Spec3 == "#NA" || string.IsNullOrEmpty(r.Spec3)) &&
-        (r.Spec4 == "#NA" || string.IsNullOrEmpty(r.Spec4)) &&
-        (r.Spec5 == "#NA" || string.IsNullOrEmpty(r.Spec5)) &&
-        (r.Spec6 == "#NA" || string.IsNullOrEmpty(r.Spec6));
-
     private static bool HasAnyValue(ToolSpecResult r) =>
         !string.IsNullOrEmpty(r.Spec1) && r.Spec1 != "#NA" ||
         !string.IsNullOrEmpty(r.Spec2) && r.Spec2 != "#NA" ||
@@ -114,24 +104,4 @@ public class ScraperService : IScraperService
         !string.IsNullOrEmpty(r.Spec4) && r.Spec4 != "#NA" ||
         !string.IsNullOrEmpty(r.Spec5) && r.Spec5 != "#NA" ||
         !string.IsNullOrEmpty(r.Spec6) && r.Spec6 != "#NA";
-
-    private static ToolSpecResult MergeResults(ToolSpecResult scrape, ToolSpecResult partNumber)
-    {
-        return new ToolSpecResult
-        {
-            Success = scrape.Success,
-            Spec1 = UseIfNotNa(scrape.Spec1, partNumber.Spec1),
-            Spec2 = UseIfNotNa(scrape.Spec2, partNumber.Spec2),
-            Spec3 = UseIfNotNa(scrape.Spec3, partNumber.Spec3),
-            Spec4 = UseIfNotNa(scrape.Spec4, partNumber.Spec4),
-            Spec5 = UseIfNotNa(scrape.Spec5, partNumber.Spec5),
-            Spec6 = UseIfNotNa(scrape.Spec6, partNumber.Spec6)
-        };
-    }
-
-    private static string UseIfNotNa(string primary, string fallback)
-    {
-        if (!string.IsNullOrEmpty(primary) && primary != "#NA") return primary;
-        return string.IsNullOrEmpty(fallback) || fallback == "#NA" ? "#NA" : fallback;
-    }
 }
