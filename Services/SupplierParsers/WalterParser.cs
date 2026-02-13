@@ -10,14 +10,12 @@ public class WalterParser : BaseSupplierParser
 
     public override string SupplierName => "WALTER";
     protected override string SearchBaseUrl => "https://www.walter-tools.com";
-    protected override TimeSpan PerAttemptTimeout => TimeSpan.FromSeconds(60);
+    protected override TimeSpan PerAttemptTimeout => TimeSpan.FromSeconds(90);
 
     protected override async Task<ToolSpecResult> FetchSpecsCoreAsync(ToolRecord record, CancellationToken ct)
     {
-        // Walter's website is a JS SPA. Use Playwright:
-        // 1. Navigate to products page
-        // 2. Reveal hidden search input, type part number, press Enter
-        // 3. Extract specs from the rendered table
+        // Walter's website is a JS SPA. Use Playwright with the direct product URL:
+        // https://www.walter-tools.com/en-us/search/product/{partNumber}
         var result = await FetchSpecsWithPlaywrightAsync(record, ct);
         if (result != null && HasRequiredSpecs(result))
             return result;
@@ -33,49 +31,17 @@ public class WalterParser : BaseSupplierParser
             await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
             var page = await browser.NewPageAsync();
 
-            // Step 1: Load the products page
-            await page.GotoAsync($"{SearchBaseUrl}/en-us/products",
-                new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 20000 });
-            await Task.Delay(5000, ct);
+            // Navigate directly to the product search result URL
+            var partNo = record.ToolDescription.Trim();
+            var url = $"{SearchBaseUrl}/en-us/search/product/{Uri.EscapeDataString(partNo.ToLowerInvariant())}";
+            await page.GotoAsync(url, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 30000 });
+            await Task.Delay(10000, ct); // Wait for Angular JS rendering
 
-            // Step 2: Click the search area to reveal hidden inputs
-            await page.EvaluateAsync(@"() => {
-                const triggers = document.querySelectorAll('.l-search-input, [class*=""search-icon""], [class*=""search-trigger""]');
-                triggers.forEach(t => t.click());
-            }");
-            await Task.Delay(1500, ct);
+            // Verify specs are rendered; if not, wait a bit more
+            var hasSpecs = await page.EvaluateAsync<bool>("() => document.body.innerText.includes('\\tDc\\t')");
+            if (!hasSpecs)
+                await Task.Delay(5000, ct);
 
-            // Step 3: Force hidden search inputs visible and focus
-            await page.EvaluateAsync(@"() => {
-                const inputs = document.querySelectorAll('input[placeholder*=""earch""]');
-                for (const inp of inputs) {
-                    inp.style.display = 'block';
-                    inp.style.visibility = 'visible';
-                    inp.style.opacity = '1';
-                    inp.style.position = 'relative';
-                    inp.removeAttribute('hidden');
-                    let p = inp.parentElement;
-                    for (let i = 0; i < 10 && p; i++) {
-                        p.style.display = '';
-                        p.style.visibility = 'visible';
-                        p.style.opacity = '1';
-                        p.style.overflow = 'visible';
-                        p.style.height = 'auto';
-                        p = p.parentElement;
-                    }
-                    inp.focus();
-                }
-            }");
-            await Task.Delay(500, ct);
-
-            // Step 4: Fill and submit search
-            var input = page.Locator("input[placeholder*='earch']").First;
-            await input.FillAsync(record.ToolDescription, new LocatorFillOptions { Force = true });
-            await Task.Delay(2000, ct); // Wait for autocomplete
-            await input.PressAsync("Enter");
-            await Task.Delay(8000, ct); // Wait for product page to render
-
-            // Step 5: Extract specs
             var result = await ExtractSpecsFromPageAsync(page);
             await page.CloseAsync();
             return result;
@@ -93,8 +59,6 @@ public class WalterParser : BaseSupplierParser
         try
         {
             // Walter spec table: "Description\tSymbol\tValue" (tab-separated rows)
-            // Codes: Dc (diameter), R (radius), Lc (cutting length), l1 (overall length),
-            //        d1 (shank diameter), Z (number of teeth)
             specs = await page.EvaluateAsync<JsonElement>(@"() => {
                 const text = document.body.innerText;
 

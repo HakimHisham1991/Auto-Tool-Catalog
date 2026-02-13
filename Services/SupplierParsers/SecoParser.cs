@@ -114,6 +114,7 @@ public class SecoParser : BaseSupplierParser
                 return {
                     dc: getSpec('DC'),
                     apmxs: getSpec('APMXS') || getSpec('APMX'),
+                    lu: getSpec('LU'),
                     re: getSpec('RE'),
                     pcedc: getInt('PCEDC') || getInt('FCEDC'),
                     oal: getSpec('OAL'),
@@ -129,11 +130,23 @@ public class SecoParser : BaseSupplierParser
         if (specs.ValueKind == JsonValueKind.Object)
         {
             result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";     // Tool Ø
-            result.Spec2 = GetJsonString(specs, "apmxs") ?? "#NA";  // Flute length
-            result.Spec3 = GetJsonString(specs, "re") ?? "#NA";     // Corner rad
-            result.Spec4 = GetJsonString(specs, "pcedc") ?? "#NA";  // Edge count
             result.Spec5 = GetJsonString(specs, "oal") ?? "#NA";    // OAL
             result.Spec6 = GetJsonString(specs, "dmm") ?? "#NA";    // Shank/bore Ø
+
+            if (record.IsDrill)
+            {
+                // Drill: flute length = LU (usable length), corner rad = "--", edge count = 1
+                result.Spec2 = GetJsonString(specs, "lu") ?? "#NA";  // Flute length (LU)
+                result.Spec3 = "--";                                  // Corner rad not applicable
+                result.Spec4 = "1";                                   // Drills have 1 cutting edge
+            }
+            else
+            {
+                // Endmill: flute length = APMXS, corner rad = RE, edge count = PCEDC
+                result.Spec2 = GetJsonString(specs, "apmxs") ?? "#NA";  // Flute length
+                result.Spec3 = GetJsonString(specs, "re") ?? "#NA";     // Corner rad
+                result.Spec4 = GetJsonString(specs, "pcedc") ?? "#NA";  // Edge count
+            }
         }
 
         return result;
