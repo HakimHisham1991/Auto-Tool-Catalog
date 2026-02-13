@@ -42,7 +42,7 @@ public class WalterParser : BaseSupplierParser
             if (!hasSpecs)
                 await Task.Delay(5000, ct);
 
-            var result = await ExtractSpecsFromPageAsync(page);
+            var result = await ExtractSpecsFromPageAsync(page, record);
             await page.CloseAsync();
             return result;
         }
@@ -52,7 +52,7 @@ public class WalterParser : BaseSupplierParser
         }
     }
 
-    private static async Task<ToolSpecResult> ExtractSpecsFromPageAsync(IPage page)
+    private static async Task<ToolSpecResult> ExtractSpecsFromPageAsync(IPage page, ToolRecord record)
     {
         var result = new ToolSpecResult { Success = true };
         JsonElement specs;
@@ -93,10 +93,19 @@ public class WalterParser : BaseSupplierParser
         {
             result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";  // Tool Ø
             result.Spec2 = GetJsonString(specs, "lc") ?? "#NA";  // Flute/cutting length
-            result.Spec3 = GetJsonString(specs, "r") ?? "#NA";   // Corner radius
             result.Spec4 = GetJsonString(specs, "z") ?? "#NA";   // Edge count
             result.Spec5 = GetJsonString(specs, "l1") ?? "#NA";  // OAL
             result.Spec6 = GetJsonString(specs, "d1") ?? "#NA";  // Shank/bore Ø
+
+            if (record.IsDrill)
+            {
+                // Drills don't have corner radius
+                result.Spec3 = "--";
+            }
+            else
+            {
+                result.Spec3 = GetJsonString(specs, "r") ?? "#NA";  // Corner radius
+            }
         }
 
         return result;

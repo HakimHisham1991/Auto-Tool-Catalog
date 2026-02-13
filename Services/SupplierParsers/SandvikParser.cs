@@ -49,7 +49,7 @@ public class SandvikParser : BaseSupplierParser
             catch { }
 
             // Extract specs - handles BOTH mm and inch (auto-converts inch→mm)
-            var res = await ExtractSpecsFromPageAsync(page);
+            var res = await ExtractSpecsFromPageAsync(page, record);
             await page.CloseAsync();
             return res;
         }
@@ -59,7 +59,7 @@ public class SandvikParser : BaseSupplierParser
         }
     }
 
-    private static async Task<ToolSpecResult> ExtractSpecsFromPageAsync(IPage page)
+    private static async Task<ToolSpecResult> ExtractSpecsFromPageAsync(IPage page, ToolRecord record)
     {
         var result = new ToolSpecResult { Success = true };
         JsonElement specs;
@@ -67,7 +67,7 @@ public class SandvikParser : BaseSupplierParser
         {
             // Extract specs via JavaScript in the browser.
             // Search by CODE (e.g. "(DC)") not full label — labels have inconsistent spacing.
-            // getVal: prefers "mm" values; if only "inch" found, converts inch→mm.
+            // getVal: prefers "mm" values; if only "inch" found, converts inch→mm with 3 decimal precision.
             // getInt: for unitless specs like edge count.
             specs = await page.EvaluateAsync<JsonElement>(@"() => {
                 const body = document.body.innerText;
@@ -89,7 +89,13 @@ public class SandvikParser : BaseSupplierParser
                     if (inch) {
                         const v = parseFloat(inch[1].replace(',', '.')) * 25.4;
                         if (Math.abs(v) < 0.01) return '0 mm';
-                        return Math.round(v) + ' mm';
+                        // Smart rounding: snap to fewer decimals if floating-point noise
+                        let r = Math.round(v * 1000) / 1000;
+                        const r2 = Math.round(v * 100) / 100;
+                        if (Math.abs(r - r2) < 0.002) r = r2;
+                        const ri = Math.round(r);
+                        if (Math.abs(r - ri) < 0.002) r = ri;
+                        return (r % 1 === 0 ? r.toString() : parseFloat(r.toFixed(3)).toString()) + ' mm';
                     }
                     return null;
                 };
@@ -106,6 +112,7 @@ public class SandvikParser : BaseSupplierParser
                 return {
                     dc: getVal('DC'),
                     apmx: getVal('APMX'),
+                    lu: getVal('LU'),
                     re: getVal('RE'),
                     zefp: getInt('ZEFP'),
                     oal: getVal('OAL') || getVal('LF'),
@@ -120,12 +127,24 @@ public class SandvikParser : BaseSupplierParser
 
         if (specs.ValueKind == JsonValueKind.Object)
         {
-            result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";
-            result.Spec2 = GetJsonString(specs, "apmx") ?? "#NA";
-            result.Spec3 = GetJsonString(specs, "re") ?? "#NA";
-            result.Spec4 = GetJsonString(specs, "zefp") ?? "#NA";
-            result.Spec5 = GetJsonString(specs, "oal") ?? "#NA";
-            result.Spec6 = GetJsonString(specs, "dconms") ?? "#NA";
+            result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";     // Tool Ø
+            result.Spec5 = GetJsonString(specs, "oal") ?? "#NA";    // OAL
+            result.Spec6 = GetJsonString(specs, "dconms") ?? "#NA"; // Shank/Bore Ø
+
+            if (record.IsDrill)
+            {
+                // Drill: flute length = LU (usable length), corner rad = "--", edge count = 1
+                result.Spec2 = GetJsonString(specs, "lu") ?? "#NA";  // Flute length (LU)
+                result.Spec3 = "--";                                  // Corner rad not applicable
+                result.Spec4 = "1";                                   // Drills have 1 cutting edge
+            }
+            else
+            {
+                // Endmill: flute length = APMX, corner rad = RE, edge count = ZEFP
+                result.Spec2 = GetJsonString(specs, "apmx") ?? "#NA";  // Flute length
+                result.Spec3 = GetJsonString(specs, "re") ?? "#NA";    // Corner rad
+                result.Spec4 = GetJsonString(specs, "zefp") ?? "#NA";  // Edge count
+            }
         }
         return result;
     }
