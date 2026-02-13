@@ -26,6 +26,9 @@
                 <button type="button" id="btnProcess" class="btn btn-success" disabled>Process / Fetch Specs</button>
             </div>
             <div class="col-auto d-flex align-items-end">
+                <button type="button" id="btnStop" class="btn btn-danger" style="display: none;">Stop</button>
+            </div>
+            <div class="col-auto d-flex align-items-end">
                 <button type="button" id="btnExport" class="btn btn-outline-primary" disabled>Export Completed Excel</button>
             </div>
         </div>
@@ -78,8 +81,62 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
     <script>
         let sessionId = null;
-        let pollInterval = null;
+        let connection = null;
 
+        // ── SignalR setup ──────────────────────────────────────────────
+        async function ensureConnection() {
+            if (connection) return;
+            connection = new signalR.HubConnectionBuilder()
+                .withUrl('/hubs/processing')
+                .withAutomaticReconnect()
+                .build();
+
+            // Real-time progress bar updates
+            connection.on('ProgressUpdate', p => {
+                document.getElementById('progressBar').style.width = p.percentComplete + '%';
+                document.getElementById('progressBar').textContent = p.percentComplete + '%';
+                document.getElementById('successCount').textContent = p.successCount ?? 0;
+                document.getElementById('failCount').textContent = p.failCount ?? 0;
+                document.getElementById('currentItem').textContent = p.currentItem || '\u2014';
+
+                if (p.isFinished || p.isStopped) {
+                    onProcessingDone(p.isStopped);
+                }
+            });
+
+            // Real-time row-by-row record updates
+            connection.on('RecordUpdated', r => {
+                const row = document.getElementById('row-' + r.index);
+                if (!row) return;
+                row.innerHTML =
+                    `<td>${r.no}</td>` +
+                    `<td>${escapeHtml(r.toolDescription)}</td>` +
+                    `<td>${escapeHtml(r.typeOfTool)}</td>` +
+                    `<td>${escapeHtml(r.shankBoreDiameter || '-')}</td>` +
+                    `<td>${escapeHtml(r.toolDiameter || '-')}</td>` +
+                    `<td>${escapeHtml(r.cornerRad || '-')}</td>` +
+                    `<td>${escapeHtml(r.fluteCuttingEdgeLength || '-')}</td>` +
+                    `<td>${escapeHtml(r.overallLength || '-')}</td>` +
+                    `<td>${escapeHtml(r.peripheralCuttingEdgeCount || '-')}</td>` +
+                    `<td>${escapeHtml(r.procurementChannel)}</td>`;
+                row.classList.add('table-success');
+                setTimeout(() => row.classList.remove('table-success'), 1500);
+            });
+
+            await connection.start();
+        }
+
+        function onProcessingDone(wasStopped) {
+            document.getElementById('btnProcess').disabled = false;
+            document.getElementById('btnStop').style.display = 'none';
+            if (wasStopped) {
+                document.getElementById('currentItem').textContent = 'Stopped by user';
+                document.getElementById('progressBar').classList.remove('progress-bar-animated', 'progress-bar-striped');
+                document.getElementById('progressBar').classList.add('bg-warning');
+            }
+        }
+
+        // ── Import ─────────────────────────────────────────────────────
         document.getElementById('btnImport').addEventListener('click', async () => {
             const input = document.getElementById('fileInput');
             if (!input.files?.length) {
@@ -102,37 +159,42 @@
             }
         });
 
+        // ── Process ────────────────────────────────────────────────────
         document.getElementById('btnProcess').addEventListener('click', async () => {
             if (!sessionId) return;
+
+            // Reset UI
             document.getElementById('btnProcess').disabled = true;
+            document.getElementById('btnStop').style.display = '';
             document.getElementById('progressSection').style.display = 'block';
+            document.getElementById('progressBar').className = 'progress-bar progress-bar-striped progress-bar-animated';
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressBar').textContent = '0%';
+
             try {
+                await ensureConnection();
+                await connection.invoke('JoinSession', sessionId);
                 const res = await fetch('/api/process/' + sessionId, { method: 'POST' });
                 if (!res.ok) throw new Error('Failed to start processing');
-                pollInterval = setInterval(pollProgress, 500);
-                pollProgress();
             } catch (e) {
                 alert('Error: ' + e.message);
                 document.getElementById('btnProcess').disabled = false;
+                document.getElementById('btnStop').style.display = 'none';
             }
         });
 
-        async function pollProgress() {
+        // ── Stop ───────────────────────────────────────────────────────
+        document.getElementById('btnStop').addEventListener('click', async () => {
             if (!sessionId) return;
-            const res = await fetch('/api/progress/' + sessionId);
-            const p = await res.json();
-            document.getElementById('progressBar').style.width = p.percentComplete + '%';
-            document.getElementById('progressBar').textContent = p.percentComplete + '%';
-            document.getElementById('successCount').textContent = p.successCount ?? 0;
-            document.getElementById('failCount').textContent = p.failCount ?? 0;
-            document.getElementById('currentItem').textContent = p.currentItem || '—';
-            if (p.isFinished) {
-                clearInterval(pollInterval);
-                document.getElementById('btnProcess').disabled = false;
-                loadTable();
+            document.getElementById('btnStop').disabled = true;
+            try {
+                await fetch('/api/stop/' + sessionId, { method: 'POST' });
+            } catch (e) {
+                console.error('Stop failed:', e);
             }
-        }
+        });
 
+        // ── Table ──────────────────────────────────────────────────────
         async function loadTable() {
             if (!sessionId) return;
             const res = await fetch('/api/records/' + sessionId);
@@ -142,21 +204,25 @@
                 tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No data.</td></tr>';
                 return;
             }
-            tbody.innerHTML = rows.map(r => `<tr>
-                <td>${r.no}</td>
-                <td>${escapeHtml(r.toolDescription)}</td>
-                <td>${escapeHtml(r.typeOfTool)}</td>
-                <td>${escapeHtml(r.shankBoreDiameter || '-')}</td>
-                <td>${escapeHtml(r.toolDiameter || '-')}</td>
-                <td>${escapeHtml(r.cornerRad || '-')}</td>
-                <td>${escapeHtml(r.fluteCuttingEdgeLength || '-')}</td>
-                <td>${escapeHtml(r.overallLength || '-')}</td>
-                <td>${escapeHtml(r.peripheralCuttingEdgeCount || '-')}</td>
-                <td>${escapeHtml(r.procurementChannel)}</td>
-            </tr>`).join('');
+            tbody.innerHTML = rows.map((r, i) =>
+                `<tr id="row-${i}">` +
+                `<td>${r.no}</td>` +
+                `<td>${escapeHtml(r.toolDescription)}</td>` +
+                `<td>${escapeHtml(r.typeOfTool)}</td>` +
+                `<td>${escapeHtml(r.shankBoreDiameter || '-')}</td>` +
+                `<td>${escapeHtml(r.toolDiameter || '-')}</td>` +
+                `<td>${escapeHtml(r.cornerRad || '-')}</td>` +
+                `<td>${escapeHtml(r.fluteCuttingEdgeLength || '-')}</td>` +
+                `<td>${escapeHtml(r.overallLength || '-')}</td>` +
+                `<td>${escapeHtml(r.peripheralCuttingEdgeCount || '-')}</td>` +
+                `<td>${escapeHtml(r.procurementChannel)}</td>` +
+                `</tr>`
+            ).join('');
         }
+
         function escapeHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+        // ── Export ─────────────────────────────────────────────────────
         document.getElementById('btnExport').addEventListener('click', () => {
             if (!sessionId) return;
             window.location.href = '/api/export/' + sessionId;

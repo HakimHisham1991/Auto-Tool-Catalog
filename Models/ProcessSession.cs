@@ -8,5 +8,6 @@ public class ProcessSession
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public List<ToolRecord> Records { get; set; } = new();
     public ProcessingProgress Progress { get; set; } = new();
+    public CancellationTokenSource? Cts { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

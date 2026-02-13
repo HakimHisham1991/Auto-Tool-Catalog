@@ -12,7 +12,7 @@ public class ScraperService : IScraperService
         _parsers = parsers;
     }
 
-    public async Task<ProcessSession> ProcessAsync(ProcessSession session, IProgress<ProcessingProgress>? progress = null, CancellationToken ct = default)
+    public async Task<ProcessSession> ProcessAsync(ProcessSession session, IProgress<ProcessingProgress>? progress = null, Func<int, ToolRecord, Task>? onRecordCompleted = null, CancellationToken ct = default)
     {
         var records = session.Records;
         var total = records.Count;
@@ -23,11 +23,13 @@ public class ScraperService : IScraperService
         session.Progress = new ProcessingProgress { Total = total };
 
         var semaphore = new SemaphoreSlim(MaxConcurrency);
-        var tasks = records.Select(async record =>
+        var tasks = records.Select(async (record, index) =>
         {
             await semaphore.WaitAsync(ct);
             try
             {
+                ct.ThrowIfCancellationRequested();
+
                 progress?.Report(new ProcessingProgress
                 {
                     Total = total,
@@ -75,6 +77,11 @@ public class ScraperService : IScraperService
                 session.Progress.Completed = done;
                 session.Progress.SuccessCount = successCount;
                 session.Progress.FailCount = failCount;
+
+                if (onRecordCompleted != null)
+                {
+                    try { await onRecordCompleted(index, record); } catch { /* ignore SignalR send errors */ }
+                }
             }
             finally
             {
@@ -82,11 +89,19 @@ public class ScraperService : IScraperService
             }
         });
 
-        await Task.WhenAll(tasks);
+        try
+        {
+            await Task.WhenAll(tasks);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Processing was stopped by user — fall through to final progress report
+        }
 
         session.Progress.Completed = completed;
         session.Progress.SuccessCount = successCount;
         session.Progress.FailCount = failCount;
+        session.Progress.IsStopped = ct.IsCancellationRequested;
         progress?.Report(session.Progress);
         return session;
     }

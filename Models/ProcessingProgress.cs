@@ -10,6 +10,7 @@ public class ProcessingProgress
     public int SuccessCount { get; set; }
     public int FailCount { get; set; }
     public string? CurrentItem { get; set; }
+    public bool IsStopped { get; set; }
     public int PercentComplete => Total > 0 ? (Completed * 100) / Total : 0;
-    public bool IsFinished => Completed >= Total;
+    public bool IsFinished => Total > 0 && Completed >= Total;
 }

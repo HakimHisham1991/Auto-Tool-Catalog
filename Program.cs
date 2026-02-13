@@ -51,16 +51,46 @@ app.MapPost("/api/upload", async (HttpRequest req, IExcelService excel, IProcess
     return Results.Ok(new { sessionId = session.Id, count = records.Count });
 });
 
-app.MapPost("/api/process/{sessionId}", async (string sessionId, IProcessSessionStore store, IScraperService scraper, IHubContext<ProcessingHub> hub, CancellationToken ct) =>
+app.MapPost("/api/process/{sessionId}", async (string sessionId, IProcessSessionStore store, IScraperService scraper, IHubContext<ProcessingHub> hub) =>
 {
     var session = store.Get(sessionId);
     if (session == null) return Results.NotFound();
+
+    var cts = new CancellationTokenSource();
+    session.Cts = cts;
     var progress = new SignalRProgressReporter(hub, sessionId);
+
+    Func<int, ToolRecord, Task> onRecordDone = async (index, record) =>
+    {
+        await hub.Clients.Group(sessionId).SendAsync("RecordUpdated", new
+        {
+            index,
+            record.No,
+            record.ToolDescription,
+            record.TypeOfTool,
+            record.ShankBoreDiameter,
+            record.ToolDiameter,
+            record.CornerRad,
+            record.FluteCuttingEdgeLength,
+            record.OverallLength,
+            record.PeripheralCuttingEdgeCount,
+            record.ProcurementChannel
+        });
+    };
+
     _ = Task.Run(async () =>
     {
-        await scraper.ProcessAsync(session, progress, CancellationToken.None);
-    }, ct);
+        await scraper.ProcessAsync(session, progress, onRecordDone, cts.Token);
+    });
     return Results.Accepted();
+});
+
+app.MapPost("/api/stop/{sessionId}", (string sessionId, IProcessSessionStore store) =>
+{
+    var session = store.Get(sessionId);
+    if (session == null) return Results.NotFound();
+    session.Cts?.Cancel();
+    return Results.Ok(new { stopped = true });
 });
 
 app.MapGet("/api/records/{sessionId}", (string sessionId, IProcessSessionStore store) =>
