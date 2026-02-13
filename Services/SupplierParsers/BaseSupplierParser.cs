@@ -8,6 +8,7 @@ namespace AutoToolCatalog.Services.SupplierParsers;
 public abstract class BaseSupplierParser : ISupplierParser
 {
     private static readonly Regex MeasurementPattern = new(@"\d+[,.]?\d*\s*(?:mm|in)", RegexOptions.IgnoreCase);
+    private static readonly Regex PlainNumberPattern = new(@"^\s*\d{1,2}\s*$");
     protected readonly HttpClient HttpClient;
     private const int MaxRetries = 3;
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
@@ -67,6 +68,27 @@ public abstract class BaseSupplierParser : ISupplierParser
 
     protected static string? ExtractSpec(HtmlDocument doc, string[] specCodes)
     {
+        // 0. Kennametal-style: td.spec-label + td.spec-value, prefer metric over inch rows
+        var specRows = doc.DocumentNode.SelectNodes("//tr[.//td[contains(@class,'spec-label')]]");
+        if (specRows != null)
+        {
+            foreach (HtmlNode row in specRows)
+            {
+                if (row.GetAttributeValue("class", "").Contains("inch", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var labelCell = row.SelectSingleNode(".//td[contains(@class,'spec-label')]");
+                var valueCell = row.SelectSingleNode(".//td[contains(@class,'spec-value')]");
+                if (labelCell == null || valueCell == null) continue;
+                var header = labelCell.InnerText.Trim().ToUpperInvariant();
+                var value = valueCell.InnerText.Trim();
+                foreach (var code in specCodes)
+                {
+                    if (header.Contains(code.ToUpperInvariant()))
+                        return NormalizeValue(value);
+                }
+            }
+        }
+
         // 1. Table rows: <tr><td>DC</td><td>10</td></tr> or 3-col: <tr><td>APMXS</td><td>Depth of cut max...</td><td>18.00 mm</td></tr>
         var rows = doc.DocumentNode.SelectNodes("//table//tr");
         if (rows != null)
@@ -88,7 +110,7 @@ public abstract class BaseSupplierParser : ISupplierParser
                         {
                             if (j == i) continue;
                             var siblingText = cells[j].InnerText.Trim();
-                            if (MeasurementPattern.IsMatch(siblingText))
+                            if (MeasurementPattern.IsMatch(siblingText) || PlainNumberPattern.IsMatch(siblingText))
                             {
                                 value = siblingText;
                                 break;
@@ -116,7 +138,7 @@ public abstract class BaseSupplierParser : ISupplierParser
                     for (var i = 1; i < cells.Count; i++)
                     {
                         var cellText = cells[i].InnerText.Trim();
-                        if (MeasurementPattern.IsMatch(cellText)) { value = cellText; break; }
+                        if (MeasurementPattern.IsMatch(cellText) || PlainNumberPattern.IsMatch(cellText)) { value = cellText; break; }
                     }
                 }
                 foreach (var code in specCodes)
@@ -146,7 +168,7 @@ public abstract class BaseSupplierParser : ISupplierParser
         }
 
         // 3. Div/spans: label + value pairs (e.g. "DC" or "Diameter" in one element, "10" in next)
-        var labels = doc.DocumentNode.SelectNodes("//*[contains(@class,'label') or contains(@class,'name') or contains(@class,'spec')]");
+        var labels = doc.DocumentNode.SelectNodes("//*[contains(@class,'label') or contains(@class,'name') or contains(@class,'spec') or contains(@class,'property') or contains(@class,'attribute') or contains(@class,'detail') or contains(@class,'title')]");
         if (labels != null)
         {
             foreach (var label in labels)
@@ -177,10 +199,27 @@ public abstract class BaseSupplierParser : ISupplierParser
         foreach (var code in specCodes)
         {
             var escaped = Regex.Escape(code);
-            var pattern = $@"(?:{escaped})[\s\S]{{0,200}}?([0-9]+[,.]?[0-9]*)\s*(?:mm)";
+            var pattern = $@"(?:{escaped})[\s\S]{{0,300}}?([0-9]+[,.]?[0-9]*)\s*(?:mm|in)";
             var m = Regex.Match(bodyText, pattern, RegexOptions.IgnoreCase);
             if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
-                return NormalizeValue(m.Groups[1].Value.Trim() + " mm");
+            {
+                var val = m.Groups[1].Value.Trim();
+                return val.Contains('.') || val.Contains(',') ? NormalizeValue(val + " mm") : NormalizeValue(val);
+            }
+        }
+
+        // 5b. For integer-only specs (flute count): "Z 4" or "Number of flutes 4" - no mm unit
+        var integerSpecKeywords = new[] { "Z", "flute", "teeth", "cutting edges", "Number of" };
+        if (specCodes.Any(c => integerSpecKeywords.Any(k => c.Contains(k, StringComparison.OrdinalIgnoreCase))))
+        {
+            foreach (var code in specCodes)
+            {
+                var escaped = Regex.Escape(code);
+                var pattern = $@"(?:{escaped})[\s\S]{{0,150}}?(\d{{1,2}})(?:\s|$|mm|in)";
+                var m = Regex.Match(bodyText, pattern, RegexOptions.IgnoreCase);
+                if (m.Success && int.TryParse(m.Groups[1].Value, out var n) && n >= 1 && n <= 24)
+                    return m.Groups[1].Value.Trim();
+            }
         }
 
         // 6. Relaxed regex for Column 4 (shank/connection) when label has extra text (e.g. "Shank diameter 6.00 mm")
