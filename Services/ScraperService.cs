@@ -93,8 +93,9 @@ public class ScraperService : IScraperService
 
     private ISupplierParser? GetParser(string supplier)
     {
+        var upper = (supplier ?? "").ToUpperInvariant();
         return _parsers.FirstOrDefault(p =>
-            string.Equals(p.SupplierName, supplier, StringComparison.OrdinalIgnoreCase));
+            upper.Contains(p.SupplierName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static void ApplyResult(ToolRecord record, ToolSpecResult result)
