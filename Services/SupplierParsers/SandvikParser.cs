@@ -32,7 +32,15 @@ public class SandvikParser : BaseSupplierParser
             await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
             var page = await browser.NewPageAsync();
             await page.GotoAsync(url, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 30000 });
-            await page.GetByText("Cutting diameter", new() { Exact = false }).WaitForAsync(new LocatorWaitForOptions { Timeout = 20000 });
+            // Wait for specs to render — try multiple possible labels
+            try
+            {
+                await page.GetByText("diameter", new() { Exact = false }).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 20000 });
+            }
+            catch
+            {
+                await Task.Delay(5000, ct); // Fallback: just wait
+            }
 
             // Try clicking Metric tab (best effort)
             try
@@ -111,7 +119,9 @@ public class SandvikParser : BaseSupplierParser
 
                 return {
                     dc: getVal('DC'),
+                    dcx: getVal('DCX'),
                     apmx: getVal('APMX'),
+                    apmx_ffw: getVal('APMX_FFW'),
                     lu: getVal('LU'),
                     re: getVal('RE'),
                     zefp: getInt('ZEFP'),
@@ -127,23 +137,35 @@ public class SandvikParser : BaseSupplierParser
 
         if (specs.ValueKind == JsonValueKind.Object)
         {
-            result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";     // Tool Ø
-            result.Spec5 = GetJsonString(specs, "oal") ?? "#NA";    // OAL
-            result.Spec6 = GetJsonString(specs, "dconms") ?? "#NA"; // Shank/Bore Ø
-
-            if (record.IsDrill)
+            if (record.IsFacemillOrInsertEndmill)
             {
-                // Drill: flute length = LU (usable length), corner rad = "--", edge count = 1
-                result.Spec2 = GetJsonString(specs, "lu") ?? "#NA";  // Flute length (LU)
-                result.Spec3 = "--";                                  // Corner rad not applicable
-                result.Spec4 = "1";                                   // Drills have 1 cutting edge
+                // Facemill / Insert Endmill:
+                result.Spec1 = GetJsonString(specs, "dcx") ?? "#NA";        // Tool Ø = DCX (Maximum cutting diameter)
+                result.Spec2 = GetJsonString(specs, "apmx_ffw") ?? "#NA";   // Flute length = APMX_FFW
+                result.Spec3 = "--";                                         // Corner rad = --
+                result.Spec4 = GetJsonString(specs, "zefp") ?? "#NA";       // Edge count = ZEFP
+                result.Spec5 = GetJsonString(specs, "oal") ?? "#NA";        // OAL
+                result.Spec6 = "--";                                         // Shank/Bore Ø = --
+            }
+            else if (record.IsDrill)
+            {
+                // Solid Drill:
+                result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";     // Tool Ø
+                result.Spec2 = GetJsonString(specs, "lu") ?? "#NA";     // Flute length (LU)
+                result.Spec3 = "--";                                     // Corner rad not applicable
+                result.Spec4 = "1";                                      // Drills have 1 cutting edge
+                result.Spec5 = GetJsonString(specs, "oal") ?? "#NA";    // OAL
+                result.Spec6 = GetJsonString(specs, "dconms") ?? "#NA"; // Shank/Bore Ø
             }
             else
             {
-                // Endmill: flute length = APMX, corner rad = RE, edge count = ZEFP
-                result.Spec2 = GetJsonString(specs, "apmx") ?? "#NA";  // Flute length
-                result.Spec3 = GetJsonString(specs, "re") ?? "#NA";    // Corner rad
-                result.Spec4 = GetJsonString(specs, "zefp") ?? "#NA";  // Edge count
+                // Solid Endmill:
+                result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";       // Tool Ø
+                result.Spec2 = GetJsonString(specs, "apmx") ?? "#NA";     // Flute length
+                result.Spec3 = GetJsonString(specs, "re") ?? "#NA";       // Corner rad
+                result.Spec4 = GetJsonString(specs, "zefp") ?? "#NA";     // Edge count
+                result.Spec5 = GetJsonString(specs, "oal") ?? "#NA";      // OAL
+                result.Spec6 = GetJsonString(specs, "dconms") ?? "#NA";   // Shank/Bore Ø
             }
         }
         return result;

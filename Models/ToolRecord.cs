@@ -24,12 +24,25 @@ public class ToolRecord
     public string Supplier => NormalizeSupplier(ProcurementChannel);
 
     /// <summary>
-    /// Tool type for parsing logic: Endmill or Drill.
+    /// Tool type for parsing logic. Only registered types are supported.
     /// </summary>
     public ToolType ToolType => InferToolType(TypeOfTool);
 
-    public bool IsEndmill => ToolType == ToolType.Endmill;
-    public bool IsDrill => ToolType == ToolType.Drill;
+    public bool IsEndmill => ToolType == ToolType.SolidEndmill;
+    public bool IsDrill => ToolType == ToolType.SolidDrill;
+    public bool IsFacemill => ToolType == ToolType.Facemill;
+    public bool IsInsertEndmill => ToolType == ToolType.InsertEndmill;
+
+    /// <summary>
+    /// True for Facemill or Insert Endmill (both use the same supplier rules).
+    /// </summary>
+    public bool IsFacemillOrInsertEndmill => IsFacemill || IsInsertEndmill;
+
+    /// <summary>
+    /// True only for registered/supported tool types.
+    /// Unsupported types will not be scraped.
+    /// </summary>
+    public bool IsSupportedType => ToolType != ToolType.Unsupported;
 
     private static string NormalizeSupplier(string channel)
     {
@@ -43,15 +56,24 @@ public class ToolRecord
 
     private static ToolType InferToolType(string typeOfTool)
     {
-        var upper = typeOfTool.ToUpperInvariant();
-        if (upper.Contains("DRILL")) return ToolType.Drill;
-        if (upper.Contains("ENDMILL") || upper.Contains("END MILL") || upper.Contains("MILL")) return ToolType.Endmill;
-        return ToolType.Endmill;
+        var upper = typeOfTool.Trim().ToUpperInvariant();
+
+        // Strict matching: only registered types are supported.
+        if (upper == "SOLID DRILL") return ToolType.SolidDrill;
+        if (upper == "SOLID ENDMILL" || upper == "SOLID END MILL") return ToolType.SolidEndmill;
+        if (upper == "FACEMILL" || upper == "FACE MILL") return ToolType.Facemill;
+        if (upper == "INSERT ENDMILL" || upper == "INSERT END MILL") return ToolType.InsertEndmill;
+
+        // Everything else is unsupported
+        return ToolType.Unsupported;
     }
 }
 
 public enum ToolType
 {
-    Endmill,
-    Drill
+    Unsupported,
+    SolidEndmill,
+    SolidDrill,
+    Facemill,
+    InsertEndmill
 }

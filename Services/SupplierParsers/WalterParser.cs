@@ -74,13 +74,22 @@ public class WalterParser : BaseSupplierParser
                     return m ? m[1].trim() : null;
                 };
 
+                // 'No. of inserts' uses a special label pattern
+                const getInsertCount = () => {
+                    const re = /No\. of inserts[^\t\n]*\t[^\t\n]*\t(\d+\s*(?:EA)?)/m;
+                    const m = text.match(re);
+                    return m ? m[1].trim() : null;
+                };
+
                 return {
                     dc: getSpec('Dc'),
                     r: getSpec('R'),
                     lc: getSpec('Lc'),
                     l1: getSpec('l1'),
+                    l4: getSpec('l4'),
                     d1: getSpec('d1'),
-                    z: getCount('Z')
+                    z: getCount('Z'),
+                    inserts: getInsertCount()
                 };
             }");
         }
@@ -91,20 +100,35 @@ public class WalterParser : BaseSupplierParser
 
         if (specs.ValueKind == JsonValueKind.Object)
         {
-            result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";  // Tool Ø
-            result.Spec2 = GetJsonString(specs, "lc") ?? "#NA";  // Flute/cutting length
-            result.Spec4 = GetJsonString(specs, "z") ?? "#NA";   // Edge count
-            result.Spec5 = GetJsonString(specs, "l1") ?? "#NA";  // OAL
-            result.Spec6 = GetJsonString(specs, "d1") ?? "#NA";  // Shank/bore Ø
-
-            if (record.IsDrill)
+            if (record.IsFacemillOrInsertEndmill)
             {
-                // Drills don't have corner radius
-                result.Spec3 = "--";
+                // Facemill / Insert Endmill:
+                result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";       // Tool Ø = Dc
+                result.Spec2 = GetJsonString(specs, "lc") ?? "#NA";       // Flute length = Lc
+                result.Spec3 = "--";                                       // Corner rad = --
+                result.Spec4 = GetJsonString(specs, "inserts") ?? "#NA";  // Edge count = No. of inserts
+                result.Spec5 = GetJsonString(specs, "l4") ?? "#NA";       // OAL = l4 (Maximum projection length)
+                result.Spec6 = GetJsonString(specs, "d1") ?? "#NA";       // Shank/bore Ø = d1
+            }
+            else if (record.IsDrill)
+            {
+                // Solid Drill:
+                result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";  // Tool Ø
+                result.Spec2 = GetJsonString(specs, "lc") ?? "#NA";  // Flute/cutting length
+                result.Spec3 = "--";                                   // Corner rad
+                result.Spec4 = "1";                                    // Edge count
+                result.Spec5 = GetJsonString(specs, "l1") ?? "#NA";  // OAL
+                result.Spec6 = GetJsonString(specs, "d1") ?? "#NA";  // Shank/bore Ø
             }
             else
             {
-                result.Spec3 = GetJsonString(specs, "r") ?? "#NA";  // Corner radius
+                // Solid Endmill:
+                result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";  // Tool Ø
+                result.Spec2 = GetJsonString(specs, "lc") ?? "#NA";  // Flute/cutting length
+                result.Spec3 = GetJsonString(specs, "r") ?? "#NA";   // Corner radius
+                result.Spec4 = GetJsonString(specs, "z") ?? "#NA";   // Edge count
+                result.Spec5 = GetJsonString(specs, "l1") ?? "#NA";  // OAL
+                result.Spec6 = GetJsonString(specs, "d1") ?? "#NA";  // Shank/bore Ø
             }
         }
 

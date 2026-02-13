@@ -37,20 +37,30 @@ public class ScraperService : IScraperService
                     CurrentItem = record.ToolDescription
                 });
 
-                var parser = GetParser(record.Supplier);
-                if (parser == null)
+                // Only process registered/supported tool types.
+                // Unsupported types (Facemill, Insert Endmill, etc.) get all #NA.
+                if (!record.IsSupportedType)
                 {
-                    ApplyResult(record, ToolSpecResult.Failed($"Unknown supplier: {record.Supplier}"));
-                    Interlocked.Increment(ref failCount);
+                    ApplyResult(record, ToolSpecResult.AllNA());
+                    Interlocked.Increment(ref successCount);
                 }
                 else
                 {
-                    var result = await parser.FetchSpecsAsync(record, ct);
-                    ApplyResult(record, result);
-                    if (result.Success || HasAnyValue(result))
-                        Interlocked.Increment(ref successCount);
-                    else
+                    var parser = GetParser(record.Supplier);
+                    if (parser == null)
+                    {
+                        ApplyResult(record, ToolSpecResult.Failed($"Unknown supplier: {record.Supplier}"));
                         Interlocked.Increment(ref failCount);
+                    }
+                    else
+                    {
+                        var result = await parser.FetchSpecsAsync(record, ct);
+                        ApplyResult(record, result);
+                        if (result.Success || HasAnyValue(result))
+                            Interlocked.Increment(ref successCount);
+                        else
+                            Interlocked.Increment(ref failCount);
+                    }
                 }
 
                 var done = Interlocked.Increment(ref completed);

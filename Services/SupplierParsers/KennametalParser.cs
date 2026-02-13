@@ -129,15 +129,19 @@ public class KennametalParser : BaseSupplierParser
 
         if (specs.ValueKind == JsonValueKind.Object)
         {
-            if (record.IsDrill)
+            if (record.IsFacemillOrInsertEndmill)
             {
-                // Drill-specific mapping:
-                // Tool Ø = [D1] Drill Diameter M
-                // Shank/Bore Ø = [D] Adapter / Shank / Bore Diameter
-                // Corner rad = "--" (not applicable for drills)
-                // Flute length = [L3] Flute Length
-                // OAL = [L] Overall Length
-                // Edge count = 1 (hard-coded)
+                // Facemill / Insert Endmill:
+                result.Spec1 = GetJsonString(specs, "D1MAX") ?? "#NA";   // Tool Ø = [D1MAX] Maximum Cutting Diameter
+                result.Spec2 = GetJsonString(specs, "AP1MAX") ?? "#NA";  // Flute length = [AP1MAX] 1st Maximum Cutting Depth
+                result.Spec3 = "--";                                      // Corner rad = --
+                result.Spec4 = GetJsonString(specs, "Z") ?? "#NA";      // Edge count = [Z] Number of Flutes
+                result.Spec5 = GetJsonString(specs, "L") ?? "#NA";      // OAL = [L] Overall Length
+                result.Spec6 = GetJsonString(specs, "D6") ?? "#NA";     // Shank/Bore Ø = [D6] Hub Diameter
+            }
+            else if (record.IsDrill)
+            {
+                // Solid Drill:
                 result.Spec1 = GetJsonString(specs, "D1") ?? "#NA";   // Tool Ø
                 result.Spec2 = GetJsonString(specs, "L3") ?? "#NA";   // Flute length
                 result.Spec3 = "--";                                    // Corner rad
@@ -147,13 +151,13 @@ public class KennametalParser : BaseSupplierParser
             }
             else
             {
-                // Endmill-specific mapping:
-                result.Spec1 = GetJsonString(specs, "D1") ?? "#NA";   // Tool Ø
+                // Solid Endmill:
+                result.Spec1 = GetJsonString(specs, "D1") ?? "#NA";     // Tool Ø
                 result.Spec2 = GetJsonString(specs, "AP1MAX") ?? "#NA"; // Flute/cutting length
-                result.Spec3 = GetJsonString(specs, "Re") ?? "#NA";   // Corner rad
-                result.Spec4 = GetJsonString(specs, "Z") ?? "#NA";    // Edge count
-                result.Spec5 = GetJsonString(specs, "L") ?? "#NA";    // OAL
-                result.Spec6 = GetJsonString(specs, "D") ?? "#NA";    // Shank/Bore Ø
+                result.Spec3 = GetJsonString(specs, "Re") ?? "#NA";    // Corner rad
+                result.Spec4 = GetJsonString(specs, "Z") ?? "#NA";     // Edge count
+                result.Spec5 = GetJsonString(specs, "L") ?? "#NA";     // OAL
+                result.Spec6 = GetJsonString(specs, "D") ?? "#NA";     // Shank/Bore Ø
             }
         }
 
@@ -210,7 +214,16 @@ public class KennametalParser : BaseSupplierParser
     {
         var result = new ToolSpecResult { Success = true };
 
-        if (record.IsEndmill)
+        if (record.IsFacemillOrInsertEndmill)
+        {
+            result.Spec1 = ExtractKennametalSpec(doc, "[D1MAX] Maximum Cutting Diameter") ?? ExtractSpec(doc, new[] { "D1MAX", "Maximum Cutting Diameter" }) ?? "#NA";
+            result.Spec2 = ExtractKennametalSpec(doc, "[AP1MAX] 1st Maximum Cutting Depth") ?? ExtractSpec(doc, new[] { "AP1MAX", "AP1 max" }) ?? "#NA";
+            result.Spec3 = "--";
+            result.Spec4 = ExtractKennametalSpec(doc, "[Z] Number of Flutes") ?? ExtractSpec(doc, new[] { "Z", "Number of Flutes" }) ?? "#NA";
+            result.Spec5 = ExtractKennametalSpec(doc, "[L] Overall Length") ?? ExtractSpec(doc, new[] { "Overall Length", "L" }) ?? "#NA";
+            result.Spec6 = ExtractKennametalSpec(doc, "[D6] Hub Diameter") ?? ExtractSpec(doc, new[] { "D6", "Hub Diameter" }) ?? "#NA";
+        }
+        else if (record.IsEndmill)
         {
             result.Spec1 = ExtractKennametalSpec(doc, "[D1] Effective Cutting Diameter") ?? ExtractSpec(doc, new[] { "D1", "D", "diameter" }) ?? "#NA";
             result.Spec2 = ExtractKennametalSpec(doc, "[AP1MAX] 1st Maximum Cutting Depth") ?? ExtractSpec(doc, new[] { "AP1MAX", "AP1 max" }) ?? "#NA";
@@ -221,11 +234,10 @@ public class KennametalParser : BaseSupplierParser
         }
         else if (record.IsDrill)
         {
-            // Drill-specific: use Kennametal spec labels
             result.Spec1 = ExtractKennametalSpec(doc, "[D1] Drill Diameter") ?? ExtractSpec(doc, new[] { "D1", "Drill Diameter" }) ?? "#NA";
             result.Spec2 = ExtractKennametalSpec(doc, "[L3] Flute Length") ?? ExtractSpec(doc, new[] { "L3", "Flute Length" }) ?? "#NA";
-            result.Spec3 = "--";   // Corner rad not applicable for drills
-            result.Spec4 = "1";    // Edge count hard-coded to 1 for drills
+            result.Spec3 = "--";
+            result.Spec4 = "1";
             result.Spec5 = ExtractKennametalSpec(doc, "[L] Overall Length") ?? ExtractSpec(doc, new[] { "Overall Length", "L" }) ?? "#NA";
             result.Spec6 = ExtractKennametalSpec(doc, "[D] Adapter / Shank / Bore Diameter") ?? ExtractSpec(doc, new[] { "Adapter / Shank / Bore Diameter", "Shank", "D" }) ?? "#NA";
         }

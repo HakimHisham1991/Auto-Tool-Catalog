@@ -116,9 +116,13 @@ public class SecoParser : BaseSupplierParser
                     apmxs: getSpec('APMXS') || getSpec('APMX'),
                     lu: getSpec('LU'),
                     re: getSpec('RE'),
+                    rp: getSpec('RP'),
                     pcedc: getInt('PCEDC') || getInt('FCEDC'),
+                    zefp: getInt('ZEFP'),
                     oal: getSpec('OAL'),
-                    dmm: getSpec('DMM') || getSpec('DCONMS')
+                    lf: getSpec('LF'),
+                    dmm: getSpec('DMM') || getSpec('DCONMS'),
+                    dcsfms: getSpec('DCSFMS')
                 };
             }");
         }
@@ -129,23 +133,35 @@ public class SecoParser : BaseSupplierParser
 
         if (specs.ValueKind == JsonValueKind.Object)
         {
-            result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";     // Tool Ø
-            result.Spec5 = GetJsonString(specs, "oal") ?? "#NA";    // OAL
-            result.Spec6 = GetJsonString(specs, "dmm") ?? "#NA";    // Shank/bore Ø
-
-            if (record.IsDrill)
+            if (record.IsFacemillOrInsertEndmill)
             {
-                // Drill: flute length = LU (usable length), corner rad = "--", edge count = 1
-                result.Spec2 = GetJsonString(specs, "lu") ?? "#NA";  // Flute length (LU)
-                result.Spec3 = "--";                                  // Corner rad not applicable
-                result.Spec4 = "1";                                   // Drills have 1 cutting edge
+                // Facemill / Insert Endmill:
+                result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";       // Tool Ø = DC
+                result.Spec2 = GetJsonString(specs, "apmxs") ?? "#NA";    // Flute length = APMXS
+                result.Spec3 = GetJsonString(specs, "rp") ?? "#NA";       // Corner rad = RP
+                result.Spec4 = GetJsonString(specs, "zefp") ?? "#NA";     // Edge count = ZEFP
+                result.Spec5 = GetJsonString(specs, "lf") ?? "#NA";       // OAL = LF
+                result.Spec6 = GetJsonString(specs, "dcsfms") ?? "#NA";   // Shank/Bore Ø = DCSFMS
+            }
+            else if (record.IsDrill)
+            {
+                // Solid Drill:
+                result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";     // Tool Ø
+                result.Spec2 = GetJsonString(specs, "lu") ?? "#NA";     // Flute length (LU)
+                result.Spec3 = "--";                                     // Corner rad not applicable
+                result.Spec4 = "1";                                      // Drills have 1 cutting edge
+                result.Spec5 = GetJsonString(specs, "oal") ?? "#NA";    // OAL
+                result.Spec6 = GetJsonString(specs, "dmm") ?? "#NA";    // Shank/bore Ø
             }
             else
             {
-                // Endmill: flute length = APMXS, corner rad = RE, edge count = PCEDC
-                result.Spec2 = GetJsonString(specs, "apmxs") ?? "#NA";  // Flute length
-                result.Spec3 = GetJsonString(specs, "re") ?? "#NA";     // Corner rad
-                result.Spec4 = GetJsonString(specs, "pcedc") ?? "#NA";  // Edge count
+                // Solid Endmill:
+                result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";       // Tool Ø
+                result.Spec2 = GetJsonString(specs, "apmxs") ?? "#NA";    // Flute length
+                result.Spec3 = GetJsonString(specs, "re") ?? "#NA";       // Corner rad
+                result.Spec4 = GetJsonString(specs, "pcedc") ?? "#NA";    // Edge count
+                result.Spec5 = GetJsonString(specs, "oal") ?? "#NA";      // OAL
+                result.Spec6 = GetJsonString(specs, "dmm") ?? "#NA";      // Shank/bore Ø
             }
         }
 

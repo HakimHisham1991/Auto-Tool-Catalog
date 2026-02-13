@@ -17,4 +17,9 @@ public class ToolSpecResult
     public string? ErrorMessage { get; set; }
 
     public static ToolSpecResult Failed(string message) => new() { Success = false, ErrorMessage = message };
+
+    /// <summary>
+    /// Returns a result with all specs set to #NA (used for unsupported tool types).
+    /// </summary>
+    public static ToolSpecResult AllNA() => new() { Success = true };
 }
