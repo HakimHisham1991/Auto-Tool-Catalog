@@ -83,22 +83,6 @@ public static class PartNumberSpecExtractor
         // Shank = tool diameter for solid endmills when scraping returns no data
         if ((string.IsNullOrEmpty(r.Spec6) || r.Spec6 == "#NA") && !string.IsNullOrEmpty(r.Spec1) && r.Spec1 != "#NA")
             r.Spec6 = r.Spec1;
-        // Flute length & OAL: Seco JS534 series uses ~3x and ~9.5x diameter when scraping fails
-        var dia = ParseMmValue(r.Spec1);
-        if (dia > 0)
-        {
-            if (string.IsNullOrEmpty(r.Spec2) || r.Spec2 == "#NA")
-                r.Spec2 = $"{dia * 3:F1} mm";
-            if (string.IsNullOrEmpty(r.Spec5) || r.Spec5 == "#NA")
-                r.Spec5 = $"{dia * 9.5:F1} mm";
-        }
-    }
-
-    private static double ParseMmValue(string? spec)
-    {
-        if (string.IsNullOrEmpty(spec) || spec == "#NA") return 0;
-        var m = Regex.Match(spec, @"([0-9]+[,.]?[0-9]*)\s*(?:mm)?", RegexOptions.IgnoreCase);
-        return m.Success && double.TryParse(m.Groups[1].Value.Replace(',', '.'), out var v) ? v : 0;
     }
 
     // Kennametal Endmill: H1TE4RA0400N006HBR025M -> 0400=4mm dia, N006=6mm shank, HBR025=0.25 corner
