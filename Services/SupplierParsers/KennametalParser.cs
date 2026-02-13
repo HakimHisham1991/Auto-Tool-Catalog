@@ -65,18 +65,53 @@ public class KennametalParser : BaseSupplierParser
             await Task.Delay(3000, ct);
 
             // Step 2: Fill search input with part number and press Enter
-            // The search bar auto-redirects to the product page
             var searchInput = page.Locator("input#query, input[name='query']").First;
             await searchInput.FillAsync(partNo);
             await Task.Delay(1000, ct);
             await searchInput.PressAsync("Enter");
             await Task.Delay(8000, ct); // Wait for redirect to product page
 
-            // Step 3: Verify we landed on a product page
+            // Step 3: Check if we landed on a product page
             if (!page.Url.Contains("/products/p."))
             {
-                await page.CloseAsync();
-                return null;
+                // We're on a search results page. Look for /products/p. links in the results.
+                var productUrl = await page.EvaluateAsync<string?>(@"() => {
+                    const links = [...document.querySelectorAll('a')];
+                    for (const a of links) {
+                        if (a.href && a.href.includes('/products/p.') && a.href.includes('.html')) {
+                            return a.href;
+                        }
+                    }
+                    return null;
+                }");
+
+                if (string.IsNullOrEmpty(productUrl))
+                {
+                    // Fallback: try the store search which can list individual products
+                    await page.GotoAsync($"{SearchBaseUrl}/store/us/en/kmt/search?q={Uri.EscapeDataString(partNo)}",
+                        new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 20000 });
+                    await Task.Delay(10000, ct);
+
+                    productUrl = await page.EvaluateAsync<string?>(@"() => {
+                        const links = [...document.querySelectorAll('a')];
+                        for (const a of links) {
+                            if (a.href && a.href.includes('/products/p.') && a.href.includes('.html')) {
+                                return a.href;
+                            }
+                        }
+                        return null;
+                    }");
+                }
+
+                if (string.IsNullOrEmpty(productUrl))
+                {
+                    await page.CloseAsync();
+                    return null;
+                }
+
+                // Navigate to the found product page
+                await page.GotoAsync(productUrl, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 30000 });
+                await Task.Delay(5000, ct);
             }
 
             // Step 4: Extract specs from the rendered product page

@@ -71,7 +71,7 @@ public class WalterParser : BaseSupplierParser
                 const getCount = (code) => {
                     const re = new RegExp('^[^\\t\\n]*\\t' + code + '\\t(\\d+\\s*(?:EA)?)', 'm');
                     const m = text.match(re);
-                    return m ? m[1].trim() : null;
+                    return m ? m[1].trim().replace(/\s*EA$/i, '') : null;
                 };
 
                 // 'No. of inserts' uses a special label pattern
@@ -106,7 +106,7 @@ public class WalterParser : BaseSupplierParser
                 result.Spec1 = GetJsonString(specs, "dc") ?? "#NA";       // Tool Ø = Dc
                 result.Spec2 = GetJsonString(specs, "lc") ?? "#NA";       // Flute length = Lc
                 result.Spec3 = "--";                                       // Corner rad = --
-                result.Spec4 = GetJsonString(specs, "inserts") ?? "#NA";  // Edge count = No. of inserts
+                result.Spec4 = GetJsonString(specs, "z") ?? "#NA";        // Edge count = Z (Number of teeth)
                 result.Spec5 = GetJsonString(specs, "l4") ?? "#NA";       // OAL = l4 (Maximum projection length)
                 result.Spec6 = GetJsonString(specs, "d1") ?? "#NA";       // Shank/bore Ø = d1
             }
