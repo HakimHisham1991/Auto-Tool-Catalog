@@ -118,15 +118,13 @@ public static class PartNumberSpecExtractor
             r.Spec5 = $"{len} mm";
     }
 
-    // Sandvik Endmill: 1K344-1300-XD 1730 -> 1300=13mm diameter; shank often = tool dia
+    // Sandvik Endmill: 1K344-1300-XD 1730 -> 1300=13mm diameter; no reliable OAL from part number
     private static void ExtractSandvikEndmill(string desc, ToolSpecResult r)
     {
         var m = Regex.Match(desc, @"1K\d{3}-(\d{3,4})", RegexOptions.IgnoreCase);
         if (m.Success && int.TryParse(m.Groups[1].Value, out var n))
             r.Spec1 = n >= 100 ? $"{n / 100.0:F1} mm" : $"{n} mm";
-        m = Regex.Match(desc, @"-(\d{2,3})-", RegexOptions.IgnoreCase);
-        if (m.Success && int.TryParse(m.Groups[1].Value, out var len) && len >= 20)
-            r.Spec5 = $"{len} mm";
+        // Do not extract Spec5 from -1300- (that's diameter); Sandvik format doesn't encode OAL reliably
     }
 
     // Walter Endmill: H3094718-6-100 -> 6=6mm dia, 100=100mm length; shank often = tool dia
