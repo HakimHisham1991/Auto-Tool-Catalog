@@ -61,7 +61,8 @@ public static class PartNumberSpecExtractor
         return result;
     }
 
-    // SECO Endmill: JS534060D1B.0Z4-NXT -> 060 = 6.0mm diameter, Z4 = 4 flutes, D1B = 1mm corner, shank often = tool dia
+    // SECO Endmill: JS534060D1B.0Z4-NXT -> 060 = 6.0mm diameter, Z4 = 4 flutes
+    // Note: The "D1B" segment does NOT reliably encode corner radius. The website is the source of truth.
     private static void ExtractSecoEndmill(string desc, ToolSpecResult r)
     {
         var m = Regex.Match(desc, @"JS\d{3}(\d{2,3})", RegexOptions.IgnoreCase);
@@ -70,28 +71,10 @@ public static class PartNumberSpecExtractor
         m = Regex.Match(desc, @"[Zz]-?(\d)", RegexOptions.IgnoreCase);
         if (m.Success)
             r.Spec4 = m.Groups[1].Value;
-        // D1B = 1 mm corner radius (digit before B); D2B = 2 mm, etc.
-        m = Regex.Match(desc, @"[Dd](\d)[Bb](?:\.\d)?", RegexOptions.IgnoreCase);
-        if (m.Success && int.TryParse(m.Groups[1].Value, out var corner) && corner > 0)
-            r.Spec3 = $"{corner} mm";
-        if (string.IsNullOrEmpty(r.Spec3) || r.Spec3 == "#NA")
-        {
-            m = Regex.Match(desc, @"[Dd]\d[Bb]\.(\d)");
-            if (m.Success && m.Groups[1].Value != "0")
-                r.Spec3 = m.Groups[1].Value + " mm";
-        }
+        // Corner radius: do not extract from part number (unreliable, e.g. D1B ≠ 1mm corner)
         // Shank = tool diameter for solid endmills when scraping returns no data
         if ((string.IsNullOrEmpty(r.Spec6) || r.Spec6 == "#NA") && !string.IsNullOrEmpty(r.Spec1) && r.Spec1 != "#NA")
             r.Spec6 = r.Spec1;
-        // Flute length & OAL: Seco JS534 series uses ~3x and ~9.5x diameter when scraping fails
-        var dia = ParseMmValue(r.Spec1);
-        if (dia > 0)
-        {
-            if (string.IsNullOrEmpty(r.Spec2) || r.Spec2 == "#NA")
-                r.Spec2 = $"{dia * 3:F1} mm";
-            if (string.IsNullOrEmpty(r.Spec5) || r.Spec5 == "#NA")
-                r.Spec5 = $"{dia * 9.5:F1} mm";
-        }
     }
 
     private static double ParseMmValue(string? spec)
