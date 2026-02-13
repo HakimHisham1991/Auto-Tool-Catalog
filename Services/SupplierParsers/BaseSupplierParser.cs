@@ -12,7 +12,7 @@ public abstract class BaseSupplierParser : ISupplierParser
     private static readonly Regex PlainNumberPattern = new(@"^\s*\d{1,2}\s*$");
     protected readonly HttpClient HttpClient;
     private const int MaxRetries = 3;
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
+    protected virtual TimeSpan PerAttemptTimeout => TimeSpan.FromSeconds(15);
 
     protected BaseSupplierParser(IHttpClientFactory httpClientFactory)
     {
@@ -29,7 +29,7 @@ public abstract class BaseSupplierParser : ISupplierParser
             try
             {
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(Timeout);
+                cts.CancelAfter(PerAttemptTimeout);
                 return await FetchSpecsCoreAsync(record, cts.Token);
             }
             catch (OperationCanceledException)
