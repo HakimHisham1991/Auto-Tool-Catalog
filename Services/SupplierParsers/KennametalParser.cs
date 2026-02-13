@@ -1,5 +1,7 @@
+using System.Text.Json;
 using AutoToolCatalog.Models;
 using HtmlAgilityPack;
+using Microsoft.Playwright;
 
 namespace AutoToolCatalog.Services.SupplierParsers;
 
@@ -9,10 +11,13 @@ public class KennametalParser : BaseSupplierParser
 
     public override string SupplierName => "KENNAMETAL";
     protected override string SearchBaseUrl => "https://www.kennametal.com";
+    protected override TimeSpan PerAttemptTimeout => TimeSpan.FromSeconds(60);
 
     protected override async Task<ToolSpecResult> FetchSpecsCoreAsync(ToolRecord record, CancellationToken ct)
     {
         var partNo = record.ToolDescription.Trim();
+
+        // 1. Try direct product URL (hard-coded for known items)
         var productUrl = TryDirectProductUrl(partNo);
         if (!string.IsNullOrEmpty(productUrl))
         {
@@ -24,6 +29,12 @@ public class KennametalParser : BaseSupplierParser
             }
         }
 
+        // 2. Use Playwright to search Kennametal and find the product page
+        var playwrightResult = await FetchSpecsWithPlaywrightAsync(record, ct);
+        if (playwrightResult != null && HasRequiredSpecs(playwrightResult))
+            return playwrightResult;
+
+        // 3. Fallback: HttpClient search (rarely works for JS-rendered search)
         var searchUrl = $"{SearchBaseUrl}/us/en/search.html?q={Uri.EscapeDataString(partNo)}";
         var doc = await FetchHtmlAsync(searchUrl, ct);
         if (doc == null) return ToolSpecResult.Failed("Could not load search page");
@@ -39,6 +50,128 @@ public class KennametalParser : BaseSupplierParser
         return ParseSpecTable(doc, record);
     }
 
+    private async Task<ToolSpecResult?> FetchSpecsWithPlaywrightAsync(ToolRecord record, CancellationToken ct)
+    {
+        try
+        {
+            using var playwright = await Playwright.CreateAsync();
+            await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+            var page = await browser.NewPageAsync();
+
+            var partNo = record.ToolDescription.Trim();
+
+            // Step 1: Navigate to Kennametal homepage
+            await page.GotoAsync($"{SearchBaseUrl}/us/en.html", new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 20000 });
+            await Task.Delay(3000, ct);
+
+            // Step 2: Fill search input with part number and press Enter
+            // The search bar auto-redirects to the product page
+            var searchInput = page.Locator("input#query, input[name='query']").First;
+            await searchInput.FillAsync(partNo);
+            await Task.Delay(1000, ct);
+            await searchInput.PressAsync("Enter");
+            await Task.Delay(8000, ct); // Wait for redirect to product page
+
+            // Step 3: Verify we landed on a product page
+            if (!page.Url.Contains("/products/p."))
+            {
+                await page.CloseAsync();
+                return null;
+            }
+
+            // Step 4: Extract specs from the rendered product page
+            var result = await ExtractSpecsFromPageAsync(page, record);
+            await page.CloseAsync();
+            return result;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private static async Task<ToolSpecResult> ExtractSpecsFromPageAsync(IPage page, ToolRecord record)
+    {
+        var result = new ToolSpecResult { Success = true };
+        JsonElement specs;
+        try
+        {
+            // Kennametal spec table: <tr class="... metric"><td class="spec-label">[code] label</td><td class="spec-value">value</td></tr>
+            // Extract from metric rows only, skipping inch rows
+            specs = await page.EvaluateAsync<JsonElement>(@"() => {
+                const rows = document.querySelectorAll('tr');
+                const metricSpecs = {};
+                for (const row of rows) {
+                    const cls = row.className || '';
+                    // Skip inch rows
+                    if (cls.includes('inch')) continue;
+                    const labelCell = row.querySelector('td.spec-label');
+                    const valueCell = row.querySelector('td.spec-value');
+                    if (!labelCell || !valueCell) continue;
+                    const label = labelCell.textContent.trim();
+                    const value = valueCell.textContent.trim();
+                    if (!value) continue;
+                    // Map by spec code in brackets, e.g. '[D1] Drill Diameter M' → key 'D1'
+                    const codeMatch = label.match(/^\[(\w+)\]/);
+                    if (codeMatch) {
+                        metricSpecs[codeMatch[1]] = value;
+                    }
+                    // Also store the full label for fallback matching
+                    metricSpecs['_' + label] = value;
+                }
+                return metricSpecs;
+            }");
+        }
+        catch
+        {
+            specs = default;
+        }
+
+        if (specs.ValueKind == JsonValueKind.Object)
+        {
+            if (record.IsDrill)
+            {
+                // Drill-specific mapping:
+                // Tool Ø = [D1] Drill Diameter M
+                // Shank/Bore Ø = [D] Adapter / Shank / Bore Diameter
+                // Corner rad = "--" (not applicable for drills)
+                // Flute length = [L3] Flute Length
+                // OAL = [L] Overall Length
+                // Edge count = 1 (hard-coded)
+                result.Spec1 = GetJsonString(specs, "D1") ?? "#NA";   // Tool Ø
+                result.Spec2 = GetJsonString(specs, "L3") ?? "#NA";   // Flute length
+                result.Spec3 = "--";                                    // Corner rad
+                result.Spec4 = "1";                                     // Edge count
+                result.Spec5 = GetJsonString(specs, "L") ?? "#NA";    // OAL
+                result.Spec6 = GetJsonString(specs, "D") ?? "#NA";    // Shank/Bore Ø
+            }
+            else
+            {
+                // Endmill-specific mapping:
+                result.Spec1 = GetJsonString(specs, "D1") ?? "#NA";   // Tool Ø
+                result.Spec2 = GetJsonString(specs, "AP1MAX") ?? "#NA"; // Flute/cutting length
+                result.Spec3 = GetJsonString(specs, "Re") ?? "#NA";   // Corner rad
+                result.Spec4 = GetJsonString(specs, "Z") ?? "#NA";    // Edge count
+                result.Spec5 = GetJsonString(specs, "L") ?? "#NA";    // OAL
+                result.Spec6 = GetJsonString(specs, "D") ?? "#NA";    // Shank/Bore Ø
+            }
+        }
+
+        return result;
+    }
+
+    private static string? GetJsonString(JsonElement obj, string key)
+    {
+        if (!obj.TryGetProperty(key, out var p)) return null;
+        if (p.ValueKind == JsonValueKind.String)
+        {
+            var val = p.GetString();
+            return string.IsNullOrWhiteSpace(val) ? null : val;
+        }
+        if (p.ValueKind == JsonValueKind.Null || p.ValueKind == JsonValueKind.Undefined) return null;
+        return p.ToString();
+    }
+
     private static string? TryDirectProductUrl(string partNo)
     {
         var directUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -49,7 +182,7 @@ public class KennametalParser : BaseSupplierParser
     }
 
     private static bool HasRequiredSpecs(ToolSpecResult r) =>
-        (r.Spec2 != "#NA" && !string.IsNullOrEmpty(r.Spec2)) ||
+        (r.Spec1 != "#NA" && !string.IsNullOrEmpty(r.Spec1)) ||
         (r.Spec5 != "#NA" && !string.IsNullOrEmpty(r.Spec5)) ||
         (r.Spec4 != "#NA" && !string.IsNullOrEmpty(r.Spec4));
 
@@ -85,6 +218,16 @@ public class KennametalParser : BaseSupplierParser
             result.Spec4 = ExtractKennametalSpec(doc, "[Z] Number of Flutes") ?? ExtractSpec(doc, new[] { "Z", "Number of Flutes" }) ?? "#NA";
             result.Spec5 = ExtractKennametalSpec(doc, "[L] Overall Length") ?? ExtractSpec(doc, new[] { "Overall Length", "L", "l1" }) ?? "#NA";
             result.Spec6 = ExtractKennametalSpec(doc, "[D] Adapter / Shank / Bore Diameter") ?? ExtractSpec(doc, new[] { "Adapter / Shank / Bore Diameter", "Shank" }) ?? "#NA";
+        }
+        else if (record.IsDrill)
+        {
+            // Drill-specific: use Kennametal spec labels
+            result.Spec1 = ExtractKennametalSpec(doc, "[D1] Drill Diameter") ?? ExtractSpec(doc, new[] { "D1", "Drill Diameter" }) ?? "#NA";
+            result.Spec2 = ExtractKennametalSpec(doc, "[L3] Flute Length") ?? ExtractSpec(doc, new[] { "L3", "Flute Length" }) ?? "#NA";
+            result.Spec3 = "--";   // Corner rad not applicable for drills
+            result.Spec4 = "1";    // Edge count hard-coded to 1 for drills
+            result.Spec5 = ExtractKennametalSpec(doc, "[L] Overall Length") ?? ExtractSpec(doc, new[] { "Overall Length", "L" }) ?? "#NA";
+            result.Spec6 = ExtractKennametalSpec(doc, "[D] Adapter / Shank / Bore Diameter") ?? ExtractSpec(doc, new[] { "Adapter / Shank / Bore Diameter", "Shank", "D" }) ?? "#NA";
         }
         else
         {
