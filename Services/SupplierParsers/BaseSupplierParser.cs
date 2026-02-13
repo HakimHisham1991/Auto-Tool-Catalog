@@ -8,6 +8,7 @@ namespace AutoToolCatalog.Services.SupplierParsers;
 public abstract class BaseSupplierParser : ISupplierParser
 {
     private static readonly Regex MeasurementPattern = new(@"\d+[,.]?\d*\s*(?:mm|in)", RegexOptions.IgnoreCase);
+    private static readonly Regex MetricMeasurementPattern = new(@"\d+[,.]?\d*\s*mm", RegexOptions.IgnoreCase);
     private static readonly Regex PlainNumberPattern = new(@"^\s*\d{1,2}\s*$");
     protected readonly HttpClient HttpClient;
     private const int MaxRetries = 3;
@@ -66,7 +67,7 @@ public abstract class BaseSupplierParser : ISupplierParser
         return doc;
     }
 
-    protected static string? ExtractSpec(HtmlDocument doc, string[] specCodes)
+    protected static string? ExtractSpec(HtmlDocument doc, string[] specCodes, bool metricOnly = false)
     {
         // 0. Kennametal-style: td.spec-label + td.spec-value, prefer metric over inch rows
         var specRows = doc.DocumentNode.SelectNodes("//tr[.//td[contains(@class,'spec-label')]]");
@@ -84,7 +85,7 @@ public abstract class BaseSupplierParser : ISupplierParser
                 foreach (var code in specCodes)
                 {
                     if (header.Contains(code.ToUpperInvariant()))
-                        return NormalizeValue(value);
+                        return NormalizeValue(value, metricOnly);
                 }
             }
         }
@@ -110,7 +111,8 @@ public abstract class BaseSupplierParser : ISupplierParser
                         {
                             if (j == i) continue;
                             var siblingText = cells[j].InnerText.Trim();
-                            if (MeasurementPattern.IsMatch(siblingText) || PlainNumberPattern.IsMatch(siblingText))
+                            var matchesMeasure = metricOnly ? MetricMeasurementPattern.IsMatch(siblingText) : MeasurementPattern.IsMatch(siblingText);
+                            if (matchesMeasure || PlainNumberPattern.IsMatch(siblingText))
                             {
                                 value = siblingText;
                                 break;
@@ -118,7 +120,7 @@ public abstract class BaseSupplierParser : ISupplierParser
                         }
                         if (value != null) break;
                     }
-                    if (value != null) return NormalizeValue(value);
+                    if (value != null) return NormalizeValue(value, metricOnly);
                 }
             }
         }
@@ -138,13 +140,14 @@ public abstract class BaseSupplierParser : ISupplierParser
                     for (var i = 1; i < cells.Count; i++)
                     {
                         var cellText = cells[i].InnerText.Trim();
-                        if (MeasurementPattern.IsMatch(cellText) || PlainNumberPattern.IsMatch(cellText)) { value = cellText; break; }
+                        var matchesMeasure = metricOnly ? MetricMeasurementPattern.IsMatch(cellText) : MeasurementPattern.IsMatch(cellText);
+                        if (matchesMeasure || PlainNumberPattern.IsMatch(cellText)) { value = cellText; break; }
                     }
                 }
                 foreach (var code in specCodes)
                 {
                     if (header.Contains(code.ToUpperInvariant()))
-                        return NormalizeValue(value);
+                        return NormalizeValue(value, metricOnly);
                 }
             }
         }
@@ -162,7 +165,7 @@ public abstract class BaseSupplierParser : ISupplierParser
                 foreach (var code in specCodes)
                 {
                     if (header.Contains(code.ToUpperInvariant()))
-                        return NormalizeValue(value);
+                        return NormalizeValue(value, metricOnly);
                 }
             }
         }
@@ -180,7 +183,7 @@ public abstract class BaseSupplierParser : ISupplierParser
                 foreach (var code in specCodes)
                 {
                     if (header.Contains(code.ToUpperInvariant()) && !string.IsNullOrWhiteSpace(value))
-                        return NormalizeValue(value);
+                        return NormalizeValue(value, metricOnly);
                 }
             }
         }
@@ -189,22 +192,23 @@ public abstract class BaseSupplierParser : ISupplierParser
         var bodyText = doc.DocumentNode.InnerText;
         foreach (var code in specCodes)
         {
-            var pattern = $@"(?:{Regex.Escape(code)})[\s:]+([0-9]+[,.]?[0-9]*)\s*(?:mm)?";
+            var pattern = metricOnly ? $@"(?:{Regex.Escape(code)})[\s:]+([0-9]+[,.]?[0-9]*)\s*mm" : $@"(?:{Regex.Escape(code)})[\s:]+([0-9]+[,.]?[0-9]*)\s*(?:mm)?";
             var m = Regex.Match(bodyText, pattern, RegexOptions.IgnoreCase);
             if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
-                return NormalizeValue(m.Groups[1].Value.Trim() + " mm");
+                return NormalizeValue(m.Groups[1].Value.Trim() + " mm", metricOnly);
         }
 
         // 5. Label then next measurement: "APMXS ... 18.00 mm" or "OAL ... 57.00 mm" - find code then next number+mm within 200 chars
         foreach (var code in specCodes)
         {
             var escaped = Regex.Escape(code);
-            var pattern = $@"(?:{escaped})[\s\S]{{0,300}}?([0-9]+[,.]?[0-9]*)\s*(?:mm|in)";
+            var pattern = metricOnly ? $@"(?:{escaped})[\s\S]{{0,300}}?([0-9]+[,.]?[0-9]*)\s*mm" : $@"(?:{escaped})[\s\S]{{0,300}}?([0-9]+[,.]?[0-9]*)\s*(?:mm|in)";
             var m = Regex.Match(bodyText, pattern, RegexOptions.IgnoreCase);
             if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
             {
                 var val = m.Groups[1].Value.Trim();
-                return val.Contains('.') || val.Contains(',') ? NormalizeValue(val + " mm") : NormalizeValue(val);
+                var normalized = val.Contains('.') || val.Contains(',') ? val + " mm" : val;
+                return NormalizeValue(normalized, metricOnly);
             }
         }
 
@@ -227,21 +231,22 @@ public abstract class BaseSupplierParser : ISupplierParser
         var hasShankCode = specCodes.Any(c => shankKeywords.Any(k => c.Contains(k, StringComparison.OrdinalIgnoreCase) || string.Equals(c, k, StringComparison.OrdinalIgnoreCase)));
         if (hasShankCode)
         {
-            var relaxedPattern = @"(?:DMM|shank|bore|DCONMS|Connection diameter machine side|Adapter\s*/\s*Shank\s*/\s*Bore\s*Diameter|Shank diameter|Connection diameter|Shank diameter \(h6\)|Adapter|Bore Diameter)\s+(?:\w+\s+)*([0-9]+[,.]?[0-9]*)\s*(?:mm)?";
+            var relaxedPattern = metricOnly ? @"(?:DMM|shank|bore|DCONMS|Connection diameter machine side|Adapter\s*/\s*Shank\s*/\s*Bore\s*Diameter|Shank diameter|Connection diameter|Shank diameter \(h6\)|Adapter|Bore Diameter)\s+(?:\w+\s+)*([0-9]+[,.]?[0-9]*)\s*mm" : @"(?:DMM|shank|bore|DCONMS|Connection diameter machine side|Adapter\s*/\s*Shank\s*/\s*Bore\s*Diameter|Shank diameter|Connection diameter|Shank diameter \(h6\)|Adapter|Bore Diameter)\s+(?:\w+\s+)*([0-9]+[,.]?[0-9]*)\s*(?:mm)?";
             var m = Regex.Match(bodyText, relaxedPattern, RegexOptions.IgnoreCase);
             if (m.Success && !string.IsNullOrWhiteSpace(m.Groups[1].Value))
-                return NormalizeValue(m.Groups[1].Value.Trim() + " mm");
+                return NormalizeValue(m.Groups[1].Value.Trim() + " mm", metricOnly);
         }
 
         return null;
     }
 
-    protected static string NormalizeValue(string value)
+    protected static string NormalizeValue(string value, bool metricOnly = false)
     {
         if (string.IsNullOrWhiteSpace(value)) return "#NA";
         value = value.Trim();
         if (value.Contains("in") && !value.Contains("mm"))
         {
+            if (metricOnly) return "#NA"; // Inch data not accepted when metric only
             if (double.TryParse(value.Replace("in", "").Replace("\"", "").Trim(), out var inches))
                 return $"{inches * 25.4:F2} mm";
         }
