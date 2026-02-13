@@ -67,7 +67,7 @@ app.MapGet("/api/records/{sessionId}", (string sessionId, IProcessSessionStore s
 {
     var session = store.Get(sessionId);
     if (session == null) return Results.NotFound();
-    var preview = session.Records.Take(100).Select(r => new
+    var preview = session.Records.Select(r => new
     {
         r.No,
         r.ToolDescription,
