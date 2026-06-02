@@ -2,6 +2,7 @@ using AutoToolCatalog.Data;
 using AutoToolCatalog.Hubs;
 using AutoToolCatalog.Models;
 using AutoToolCatalog.Services;
+using AutoToolCatalog.Services.Kennametal;
 using AutoToolCatalog.Services.Seco;
 using Microsoft.AspNetCore.SignalR;
 
@@ -14,11 +15,19 @@ builder.Services.AddSingleton<IProcessSessionStore, ProcessSessionStore>();
 builder.Services.AddSingleton<ICatalogRepository, CatalogRepository>();
 builder.Services.AddScoped<IExcelService, ExcelService>();
 builder.Services.AddScoped<SecoProductDataProvider>();
+builder.Services.AddScoped<KennametalProductDataProvider>();
 builder.Services.AddScoped<ProductDataProviderRegistry>();
 builder.Services.AddScoped<IScraperService, ScraperService>();
 builder.Services.AddScoped<ISecoApiClient, SecoApiClient>();
+builder.Services.AddScoped<IKennametalApiClient, KennametalApiClient>();
 
 builder.Services.AddHttpClient("SECO", c =>
+{
+    c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    c.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
+});
+
+builder.Services.AddHttpClient("KENNAMETAL", c =>
 {
     c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
     c.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");

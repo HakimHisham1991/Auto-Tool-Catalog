@@ -2,6 +2,13 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.1.0] - 2026-06-02
+
+### Added
+- Kennametal product data via `https://www.product-config.net/catalog3/cad?d=kennametal&id={productId}`.
+- Resolves product ID from Kennametal product URLs (`.{id}.html`) or site search by tool description.
+- Dynamic columns prefixed `KENN_` (e.g. `KENN_D_1`, `KENN_L_BIT_OAL`, `KENN_Z`) from CAD `attributes` + `attributeValues`.
+
 ## [2.0.5] - 2026-06-02
 
 ### Changed

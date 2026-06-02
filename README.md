@@ -10,7 +10,8 @@ A web application that enriches tooling Excel databases with supplier product da
 - Live **Data Preview** table with fixed core columns plus dynamically discovered spec columns (`SECO_DC`, `SECO_APMX`, …)
 - **Process / Fetch Specs** — concurrent supplier lookups with real-time progress (SignalR)
 - **SECO** — full API pipeline; designation-only rows use Playwright site search when no Link column is present
-- **Kennametal, Sandvik, Walter** — stub providers (`#N/A` in dynamic columns until APIs are implemented)
+- **Kennametal** — product-config CAD API (`product-config.net`); `KENN_*` columns from CAD parameters
+- **Sandvik, Walter** — stub providers (`#N/A` until APIs are implemented)
 - Export completed Excel as `{original_name}_updated.xlsx` (formatted table, hyperlinks on Link)
 - Stop processing mid-run; SignalR reconnect re-joins the session
 
@@ -68,12 +69,29 @@ Merge into session → UI + export
 
 Expect about **1–2 minutes per SECO row** without a link (serialized through a single browser gate).
 
+### Kennametal pipeline
+
+```
+Link (…6767929.html) or Tool Description
+        ↓
+Resolve numeric product ID (URL → HTTP search → Playwright site search fallback)
+        ↓
+GET https://www.product-config.net/catalog3/cad?d=kennametal&id={productId}
+        ↓
+Pair attributes[] with attributeValues[] → KENN_{cadParameterName}
+        ↓
+SQLite + UI + export
+```
+
+Product pages look like:  
+`https://www.kennametal.com/us/en/products/p.{slug}.{productId}.html`
+
 ### Dynamic columns
 
 | Supplier | Column prefix | Status |
 |----------|----------------|--------|
 | SECO | `SECO_` | Live API + browser fallback |
-| KENNAMETAL | `KENN_` | Stub (`#N/A`) |
+| KENNAMETAL | `KENN_` | Live CAD API (`product-config.net/catalog3/cad`) |
 | SANDVIK | `SAND_` | Stub (`#N/A`) |
 | WALTER | `WALT_` | Stub (`#N/A`) |
 
@@ -120,12 +138,17 @@ Auto-Tool-Catalog/
 │   ├── ProductDataProviderRegistry.cs
 │   ├── StubProductDataProvider.cs
 │   ├── PlaywrightBootstrap.cs    # Chromium install on startup
-│   └── Seco/
-│       ├── SecoApiClient.cs
-│       ├── SecoBrowserApiFetcher.cs
-│       └── SecoProductDataProvider.cs
+│   ├── Seco/
+│   │   ├── SecoApiClient.cs
+│   │   ├── SecoBrowserApiFetcher.cs
+│   │   └── SecoProductDataProvider.cs
+│   └── Kennametal/
+│       ├── KennametalApiClient.cs
+│       └── KennametalProductDataProvider.cs
+├── Models/Kennametal/KennametalCadDto.cs
 ├── Tools/
-│   └── SecoApiTest/              # Manual SECO integration test (not published with web app)
+│   ├── SecoApiTest/              # Manual SECO integration test
+│   └── KennametalApiTest/        # Manual Kennametal integration test
 ├── Pages/
 │   └── Index.cshtml              # Main UI
 └── Program.cs                    # Minimal API + Razor

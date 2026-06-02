@@ -27,5 +27,6 @@ public static class SupplierPrefixes
     };
 
     public static bool IsApiSupported(string supplier) =>
-        supplier.Equals(Seco, StringComparison.OrdinalIgnoreCase);
+        supplier.Equals(Seco, StringComparison.OrdinalIgnoreCase) ||
+        supplier.Equals(Kennametal, StringComparison.OrdinalIgnoreCase);
 }
