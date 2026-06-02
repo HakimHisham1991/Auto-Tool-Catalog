@@ -2,7 +2,7 @@
 @model AutoToolCatalog.Pages.IndexModel
 @{
     ViewData["Title"] = "Auto Tool Catalog";
-    const string AppVersion = "1.2.7";
+    const string AppVersion = "2.0.4";
     ViewData["AppVersion"] = AppVersion;
 }
 
@@ -43,6 +43,9 @@
             <div class="col-md-2">Failed: <strong id="failCount">0</strong></div>
             <div class="col-md-8">Current: <span id="currentItem" class="text-muted">—</span></div>
         </div>
+        <div class="small text-muted mt-2" id="processNote">
+            Note: SECO rows without a Link use browser lookup and may take about 1–2 minutes per row.
+        </div>
         <div class="small text-muted" id="importStatus" style="display: none;">
             Status: <span id="importStatusText">—</span>
         </div>
@@ -54,25 +57,18 @@
         <span>Data Preview</span>
         <span id="recordCount" class="badge bg-secondary">0 rows</span>
     </div>
-    <div class="card-body p-0">
-        <table class="table table-sm table-striped table-bordered mb-0 data-preview-table">
+    <div class="card-body p-0 table-responsive">
+        <table id="dataPreviewTable" class="table table-sm table-striped table-bordered mb-0 data-preview-table">
             <thead class="table-light">
-                <tr>
+                <tr id="tableHeadRow">
                     <th>No.</th>
                     <th>Tool Description</th>
                     <th>Supplier</th>
                     <th class="col-link">Link</th>
-                    <th>Type</th>
-                    <th>Shank/Bore Ø</th>
-                    <th>Tool Ø</th>
-                    <th>Corner rad</th>
-                    <th>Flute length</th>
-                    <th>OAL</th>
-                    <th>Edge count</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
-                <tr><td colspan="11" class="text-center text-muted">Import an Excel file to begin.</td></tr>
+                <tr><td colspan="4" class="text-center text-muted">Import an Excel file to begin.</td></tr>
             </tbody>
         </table>
     </div>
@@ -83,6 +79,21 @@
     <script>
         let sessionId = null;
         let connection = null;
+        let propertyColumns = [];
+
+        function coreColumnCount() { return 4; }
+        function totalColumnCount() { return coreColumnCount() + propertyColumns.length; }
+
+        function renderTableHead(columns) {
+            propertyColumns = columns || [];
+            const head = document.getElementById('tableHeadRow');
+            head.innerHTML =
+                '<th>No.</th>' +
+                '<th>Tool Description</th>' +
+                '<th>Supplier</th>' +
+                '<th class="col-link">Link</th>' +
+                propertyColumns.map(c => `<th>${escapeHtml(c)}</th>`).join('');
+        }
 
         function setProgressBar(percent, animated) {
             const bar = document.getElementById('progressBar');
@@ -194,19 +205,35 @@
 
                 if (p.isFinished || p.isStopped) {
                     onProcessingDone(p.isStopped);
+                    loadTable();
                 }
             });
 
             // Real-time row-by-row record updates
-            connection.on('RecordUpdated', r => {
-                const row = document.getElementById('row-' + r.index);
+            connection.on('RecordUpdated', msg => {
+                if (msg.columns) renderTableHead(msg.columns);
+                const row = document.getElementById('row-' + msg.index);
                 if (!row) return;
-                row.innerHTML = buildRowCells(r);
+                row.innerHTML = buildRowCells(msg.row);
                 row.classList.add('table-success');
                 setTimeout(() => row.classList.remove('table-success'), 1500);
             });
 
+            connection.on('ColumnsUpdated', columns => {
+                renderTableHead(columns);
+                loadTable();
+            });
+
+            wireConnectionHandlers();
             await connection.start();
+        }
+
+        function wireConnectionHandlers() {
+            if (!connection || connection._handlersWired) return;
+            connection._handlersWired = true;
+            connection.onreconnected(async () => {
+                if (sessionId) await connection.invoke('JoinSession', sessionId);
+            });
         }
 
         function onProcessingDone(wasStopped) {
@@ -294,10 +321,12 @@
         async function loadTable() {
             if (!sessionId) return;
             const res = await fetch('/api/records/' + sessionId);
-            const rows = await res.json();
+            const data = await res.json();
+            renderTableHead(data.columns || []);
+            const rows = data.rows;
             const tbody = document.getElementById('tableBody');
             if (!rows || rows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No data.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="${totalColumnCount()}" class="text-center text-muted">No data.</td></tr>`;
                 return;
             }
             tbody.innerHTML = rows.map((r, i) =>
@@ -306,19 +335,16 @@
         }
 
         function buildRowCells(r) {
-            return (
+            let html =
                 `<td>${r.no}</td>` +
                 `<td>${escapeHtml(r.toolDescription)}</td>` +
                 `<td>${escapeHtml(r.procurementChannel)}</td>` +
-                `<td class="col-link">${formatLinkCell(r.webpageLink)}</td>` +
-                `<td>${escapeHtml(r.typeOfTool)}</td>` +
-                `<td>${escapeHtml(r.shankBoreDiameter || '-')}</td>` +
-                `<td>${escapeHtml(r.toolDiameter || '-')}</td>` +
-                `<td>${escapeHtml(r.cornerRad || '-')}</td>` +
-                `<td>${escapeHtml(r.fluteCuttingEdgeLength || '-')}</td>` +
-                `<td>${escapeHtml(r.overallLength || '-')}</td>` +
-                `<td>${escapeHtml(r.peripheralCuttingEdgeCount || '-')}</td>`
-            );
+                `<td class="col-link">${formatLinkCell(r.webpageLink)}</td>`;
+            for (const col of propertyColumns) {
+                const val = r.properties && r.properties[col] != null ? r.properties[col] : '#N/A';
+                html += `<td>${escapeHtml(val)}</td>`;
+            }
+            return html;
         }
 
         function escapeHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }

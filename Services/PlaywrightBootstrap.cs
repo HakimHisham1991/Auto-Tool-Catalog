@@ -11,7 +11,7 @@ public static class PlaywrightBootstrap
 
         try
         {
-            logger.LogInformation("Checking Playwright Chromium installation...");
+            logger.LogInformation("Checking Playwright Chromium for SECO API bridge...");
             var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
             if (exitCode != 0)
                 logger.LogWarning("Playwright browser install exited with code {ExitCode}", exitCode);
@@ -20,7 +20,7 @@ public static class PlaywrightBootstrap
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to install Playwright browsers. Run: powershell bin/Debug/net10.0/playwright.ps1 install chromium");
+            logger.LogError(ex, "Failed to install Playwright browsers.");
         }
     }
 }

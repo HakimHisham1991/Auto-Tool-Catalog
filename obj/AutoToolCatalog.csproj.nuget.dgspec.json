@@ -57,9 +57,9 @@
               "target": "Package",
               "version": "[0.104.1, )"
             },
-            "HtmlAgilityPack": {
+            "Microsoft.Data.Sqlite": {
               "target": "Package",
-              "version": "[1.11.61, )"
+              "version": "[9.0.0, )"
             },
             "Microsoft.Playwright": {
               "target": "Package",

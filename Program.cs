@@ -1,7 +1,8 @@
+using AutoToolCatalog.Data;
 using AutoToolCatalog.Hubs;
 using AutoToolCatalog.Models;
 using AutoToolCatalog.Services;
-using AutoToolCatalog.Services.SupplierParsers;
+using AutoToolCatalog.Services.Seco;
 using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,20 +11,23 @@ builder.Services.AddRazorPages();
 builder.Services.AddSignalR();
 
 builder.Services.AddSingleton<IProcessSessionStore, ProcessSessionStore>();
+builder.Services.AddSingleton<ICatalogRepository, CatalogRepository>();
 builder.Services.AddScoped<IExcelService, ExcelService>();
+builder.Services.AddScoped<SecoProductDataProvider>();
+builder.Services.AddScoped<ProductDataProviderRegistry>();
 builder.Services.AddScoped<IScraperService, ScraperService>();
+builder.Services.AddScoped<ISecoApiClient, SecoApiClient>();
 
-builder.Services.AddHttpClient("SECO", c => { c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"); });
-builder.Services.AddHttpClient("KENNAMETAL", c => { c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"); });
-builder.Services.AddHttpClient("SANDVIK", c => { c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"); });
-builder.Services.AddHttpClient("WALTER", c => { c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"); });
-
-builder.Services.AddScoped<ISupplierParser, SecoParser>();
-builder.Services.AddScoped<ISupplierParser, KennametalParser>();
-builder.Services.AddScoped<ISupplierParser, SandvikParser>();
-builder.Services.AddScoped<ISupplierParser, WalterParser>();
+builder.Services.AddHttpClient("SECO", c =>
+{
+    c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    c.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
+});
 
 var app = builder.Build();
+
+var catalog = app.Services.GetRequiredService<ICatalogRepository>();
+catalog.Initialize();
 
 PlaywrightBootstrap.EnsureBrowsersInstalled(app.Logger);
 
@@ -48,7 +52,12 @@ app.MapPost("/api/upload", async (HttpRequest req, IExcelService excel, IProcess
         return Results.BadRequest("Only .xlsx files are accepted");
     await using var stream = file.OpenReadStream();
     var records = await excel.ImportAsync(stream, ct);
-    var session = new ProcessSession { Records = records, Progress = new ProcessingProgress { Total = records.Count } };
+    var session = new ProcessSession
+    {
+        SourceFileName = file.FileName,
+        Records = records,
+        Progress = new ProcessingProgress { Total = records.Count }
+    };
     store.Set(session);
     return Results.Ok(new { sessionId = session.Id, count = records.Count });
 });
@@ -67,17 +76,8 @@ app.MapPost("/api/process/{sessionId}", (string sessionId, IProcessSessionStore 
         await hub.Clients.Group(sessionId).SendAsync("RecordUpdated", new
         {
             index,
-            record.No,
-            record.ToolDescription,
-            record.TypeOfTool,
-            record.ShankBoreDiameter,
-            record.ToolDiameter,
-            record.CornerRad,
-            record.FluteCuttingEdgeLength,
-            record.OverallLength,
-            record.PeripheralCuttingEdgeCount,
-            record.ProcurementChannel,
-            record.WebpageLink
+            columns = session.PropertyColumns,
+            row = ToRowDto(record, session.PropertyColumns)
         });
     };
 
@@ -86,6 +86,7 @@ app.MapPost("/api/process/{sessionId}", (string sessionId, IProcessSessionStore 
         await using var scope = scopeFactory.CreateAsyncScope();
         var scraper = scope.ServiceProvider.GetRequiredService<IScraperService>();
         await scraper.ProcessAsync(session, progress, onRecordDone, cts.Token);
+        await hub.Clients.Group(sessionId).SendAsync("ColumnsUpdated", session.PropertyColumns);
     });
     return Results.Accepted();
 });
@@ -102,21 +103,11 @@ app.MapGet("/api/records/{sessionId}", (string sessionId, IProcessSessionStore s
 {
     var session = store.Get(sessionId);
     if (session == null) return Results.NotFound();
-    var preview = session.Records.Select(r => new
+    return Results.Ok(new
     {
-        r.No,
-        r.ToolDescription,
-        r.TypeOfTool,
-        r.ShankBoreDiameter,
-        r.ToolDiameter,
-        r.CornerRad,
-        r.FluteCuttingEdgeLength,
-        r.OverallLength,
-        r.PeripheralCuttingEdgeCount,
-        r.ProcurementChannel,
-        r.WebpageLink
+        columns = session.PropertyColumns,
+        rows = session.Records.Select(r => ToRowDto(r, session.PropertyColumns))
     });
-    return Results.Ok(preview);
 });
 
 app.MapGet("/api/progress/{sessionId}", (string sessionId, IProcessSessionStore store) =>
@@ -130,10 +121,10 @@ app.MapGet("/api/sample", async (IExcelService excel, CancellationToken ct) =>
 {
     var sampleRecords = new List<ToolRecord>
     {
-        new() { No = 1, ToolDescription = "SECO FCPM 160404 EPMW H10", TypeOfTool = "Endmill", ProcurementChannel = "SECO" },
-        new() { No = 2, ToolDescription = "Kennametal KCD 12", TypeOfTool = "Drill", ProcurementChannel = "KENNAMETAL" }
+        new() { No = 1, ToolDescription = "553055Z3.0-SIRON-A", ProcurementChannel = "SECO" },
+        new() { No = 2, ToolDescription = "H1TE4RA0400N006HBR025M", ProcurementChannel = "KENNAMETAL" }
     };
-    var bytes = await excel.ExportAsync(sampleRecords, ct);
+    var bytes = await excel.ExportAsync(sampleRecords, Array.Empty<string>(), ct);
     return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ToolCatalog_Sample.xlsx");
 });
 
@@ -141,8 +132,28 @@ app.MapGet("/api/export/{sessionId}", async (string sessionId, IProcessSessionSt
 {
     var session = store.Get(sessionId);
     if (session == null) return Results.NotFound();
-    var bytes = await excel.ExportAsync(session.Records, ct);
-    return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ToolCatalog_Enriched.xlsx");
+    var bytes = await excel.ExportAsync(session.Records, session.PropertyColumns, ct);
+    var baseName = string.IsNullOrWhiteSpace(session.SourceFileName)
+        ? "ToolCatalog"
+        : Path.GetFileNameWithoutExtension(session.SourceFileName);
+    var downloadName = $"{baseName}_updated.xlsx";
+    return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", downloadName);
 });
 
 app.Run();
+
+static object ToRowDto(ToolRecord record, IReadOnlyList<string> columns)
+{
+    var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var column in columns)
+        properties[column] = record.Properties.TryGetValue(column, out var value) ? value : "#N/A";
+
+    return new
+    {
+        record.No,
+        record.ToolDescription,
+        procurementChannel = record.ProcurementChannel,
+        webpageLink = record.WebpageLink,
+        properties
+    };
+}

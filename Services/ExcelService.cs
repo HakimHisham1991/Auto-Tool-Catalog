@@ -5,21 +5,12 @@ namespace AutoToolCatalog.Services;
 
 public class ExcelService : IExcelService
 {
-    private const int ColumnCount = 11;
-
-    private static readonly string[] ExportHeaders =
+    private static readonly string[] CoreHeaders =
     [
         "No.",
         "Tool Description",
         "Supplier",
-        "Link",
-        "Type",
-        "Shank/Bore Ø",
-        "Tool Ø",
-        "Corner rad",
-        "Flute length",
-        "OAL",
-        "Edge count"
+        "Link"
     ];
 
     public async Task<List<ToolRecord>> ImportAsync(Stream stream, CancellationToken ct = default)
@@ -28,6 +19,9 @@ public class ExcelService : IExcelService
         {
             using var workbook = new XLWorkbook(stream);
             var worksheet = workbook.Worksheet(1);
+            var headerRow = worksheet.Row(1);
+            var columnMap = MapColumns(headerRow);
+
             var rows = worksheet.RangeUsed()?.Rows().Skip(1) ?? Enumerable.Empty<IXLRangeRow>();
             var records = new List<ToolRecord>();
             var rowIndex = 2;
@@ -35,20 +29,20 @@ public class ExcelService : IExcelService
             foreach (var row in rows)
             {
                 ct.ThrowIfCancellationRequested();
+                var toolDescription = GetMappedString(row, columnMap, "tool description", 2);
+                if (string.IsNullOrWhiteSpace(toolDescription))
+                {
+                    rowIndex++;
+                    continue;
+                }
+
                 var record = new ToolRecord
                 {
                     RowIndex = rowIndex,
-                    No = GetInt(row, 1),
-                    ToolDescription = GetString(row, 2),
-                    ProcurementChannel = GetString(row, 3),
-                    WebpageLink = GetStringOrNull(row, 4),
-                    TypeOfTool = GetString(row, 5),
-                    ShankBoreDiameter = GetStringOrNull(row, 6),
-                    ToolDiameter = GetStringOrNull(row, 7),
-                    CornerRad = GetStringOrNull(row, 8),
-                    FluteCuttingEdgeLength = GetStringOrNull(row, 9),
-                    OverallLength = GetStringOrNull(row, 10),
-                    PeripheralCuttingEdgeCount = GetStringOrNull(row, 11)
+                    No = GetMappedInt(row, columnMap, "no.", 1),
+                    ToolDescription = toolDescription,
+                    ProcurementChannel = GetSupplier(row, columnMap),
+                    WebpageLink = GetMappedStringOrNull(row, columnMap, "link", 4)
                 };
                 records.Add(record);
                 rowIndex++;
@@ -58,24 +52,26 @@ public class ExcelService : IExcelService
         }, ct);
     }
 
-    public async Task<byte[]> ExportAsync(List<ToolRecord> records, CancellationToken ct = default)
+    public async Task<byte[]> ExportAsync(List<ToolRecord> records, IReadOnlyList<string> propertyColumns, CancellationToken ct = default)
     {
         return await Task.Run(() =>
         {
             using var workbook = new XLWorkbook();
             var worksheet = workbook.Worksheets.Add("Tool Catalog");
 
-            for (var col = 0; col < ExportHeaders.Length; col++)
-                worksheet.Cell(1, col + 1).Value = ExportHeaders[col];
+            var headers = CoreHeaders.Concat(propertyColumns).ToList();
+            for (var col = 0; col < headers.Count; col++)
+                worksheet.Cell(1, col + 1).Value = headers[col];
 
             for (var i = 0; i < records.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
-                WriteRecordRow(worksheet, i + 2, records[i]);
+                WriteRecordRow(worksheet, i + 2, records[i], propertyColumns);
             }
 
             var lastRow = Math.Max(1, records.Count + 1);
-            var tableRange = worksheet.Range(1, 1, lastRow, ColumnCount);
+            var lastCol = headers.Count;
+            var tableRange = worksheet.Range(1, 1, lastRow, lastCol);
 
             tableRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             tableRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
@@ -84,7 +80,7 @@ public class ExcelService : IExcelService
             table.Theme = XLTableTheme.TableStyleMedium6;
             table.ShowAutoFilter = true;
 
-            worksheet.Columns(1, ColumnCount).AdjustToContents();
+            worksheet.Columns(1, lastCol).AdjustToContents();
 
             using var ms = new MemoryStream();
             workbook.SaveAs(ms, false);
@@ -92,7 +88,7 @@ public class ExcelService : IExcelService
         }, ct);
     }
 
-    private static void WriteRecordRow(IXLWorksheet worksheet, int row, ToolRecord r)
+    private static void WriteRecordRow(IXLWorksheet worksheet, int row, ToolRecord r, IReadOnlyList<string> propertyColumns)
     {
         worksheet.Cell(row, 1).Value = r.No;
         worksheet.Cell(row, 2).Value = r.ToolDescription;
@@ -103,20 +99,70 @@ public class ExcelService : IExcelService
         if (!string.IsNullOrWhiteSpace(r.WebpageLink))
             linkCell.SetHyperlink(new XLHyperlink(r.WebpageLink));
 
-        worksheet.Cell(row, 5).Value = r.TypeOfTool;
-        worksheet.Cell(row, 6).Value = r.ShankBoreDiameter ?? "#NA";
-        worksheet.Cell(row, 7).Value = r.ToolDiameter ?? "#NA";
-        worksheet.Cell(row, 8).Value = r.CornerRad ?? "#NA";
-        worksheet.Cell(row, 9).Value = r.FluteCuttingEdgeLength ?? "#NA";
-        worksheet.Cell(row, 10).Value = r.OverallLength ?? "#NA";
-        worksheet.Cell(row, 11).Value = r.PeripheralCuttingEdgeCount ?? "#NA";
+        for (var i = 0; i < propertyColumns.Count; i++)
+        {
+            var key = propertyColumns[i];
+            worksheet.Cell(row, 5 + i).Value = r.Properties.TryGetValue(key, out var value) ? value : "#N/A";
+        }
     }
 
-    private static int GetInt(IXLRangeRow row, int col) => int.TryParse(GetString(row, col), out var v) ? v : 0;
-    private static string GetString(IXLRangeRow row, int col) => row.Cell(col).GetString().Trim();
-    private static string? GetStringOrNull(IXLRangeRow row, int col)
+    private static string GetSupplier(IXLRangeRow row, Dictionary<string, int> map)
     {
-        var s = row.Cell(col).GetString().Trim();
+        var supplier = GetMappedString(row, map, "supplier", 0);
+        if (!string.IsNullOrWhiteSpace(supplier) && LooksLikeSupplier(supplier))
+            return supplier;
+
+        supplier = GetMappedString(row, map, "procurement channel", 0);
+        if (!string.IsNullOrWhiteSpace(supplier))
+            return supplier;
+
+        return GetMappedString(row, map, "supplier", 3);
+    }
+
+    private static bool LooksLikeSupplier(string value)
+    {
+        var upper = value.ToUpperInvariant();
+        return upper.Contains("SECO") || upper.Contains("KENNAMETAL") || upper.Contains("SANDVIK") || upper.Contains("WALTER");
+    }
+
+    private static Dictionary<string, int> MapColumns(IXLRow headerRow)
+    {
+        var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var cell in headerRow.CellsUsed())
+        {
+            var name = cell.GetString().Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+                map[name] = cell.Address.ColumnNumber;
+        }
+
+        if (map.TryGetValue("Procurement channel", out var supplierCol) && !map.ContainsKey("Supplier"))
+            map["Supplier"] = supplierCol;
+
+        foreach (var (key, target) in new (string Key, string Target)[]
+        {
+            ("Webpage Link", "Link"),
+            ("Webpage link", "Link"),
+            ("URL", "Link"),
+            ("Product URL", "Link"),
+            ("Product Link", "Link")
+        })
+        {
+            if (map.TryGetValue(key, out var linkCol) && !map.ContainsKey(target))
+                map[target] = linkCol;
+        }
+
+        return map;
+    }
+
+    private static int GetMappedInt(IXLRangeRow row, Dictionary<string, int> map, string header, int fallbackCol) =>
+        int.TryParse(GetMappedString(row, map, header, fallbackCol), out var v) ? v : 0;
+
+    private static string GetMappedString(IXLRangeRow row, Dictionary<string, int> map, string header, int fallbackCol) =>
+        row.Cell(map.TryGetValue(header, out var col) ? col : fallbackCol).GetString().Trim();
+
+    private static string? GetMappedStringOrNull(IXLRangeRow row, Dictionary<string, int> map, string header, int fallbackCol)
+    {
+        var s = GetMappedString(row, map, header, fallbackCol);
         return string.IsNullOrWhiteSpace(s) ? null : s;
     }
 }

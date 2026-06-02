@@ -1,18 +1,26 @@
+using AutoToolCatalog.Data;
 using AutoToolCatalog.Models;
 
 namespace AutoToolCatalog.Services;
 
 public class ScraperService : IScraperService
 {
-    private readonly IEnumerable<ISupplierParser> _parsers;
+    private readonly ProductDataProviderRegistry _providers;
+    private readonly ICatalogRepository _catalog;
     private const int MaxConcurrency = 5;
+    private const string NotAvailable = "#N/A";
 
-    public ScraperService(IEnumerable<ISupplierParser> parsers)
+    public ScraperService(ProductDataProviderRegistry providers, ICatalogRepository catalog)
     {
-        _parsers = parsers;
+        _providers = providers;
+        _catalog = catalog;
     }
 
-    public async Task<ProcessSession> ProcessAsync(ProcessSession session, IProgress<ProcessingProgress>? progress = null, Func<int, ToolRecord, Task>? onRecordCompleted = null, CancellationToken ct = default)
+    public async Task<ProcessSession> ProcessAsync(
+        ProcessSession session,
+        IProgress<ProcessingProgress>? progress = null,
+        Func<int, ToolRecord, Task>? onRecordCompleted = null,
+        CancellationToken ct = default)
     {
         var records = session.Records;
         var total = records.Count;
@@ -21,8 +29,11 @@ public class ScraperService : IScraperService
         var failCount = 0;
 
         session.Progress = new ProcessingProgress { Total = total };
+        session.PropertyColumns = new List<string>();
 
         var semaphore = new SemaphoreSlim(MaxConcurrency);
+        var columnLock = new object();
+
         var tasks = records.Select(async (record, index) =>
         {
             await semaphore.WaitAsync(ct);
@@ -39,31 +50,15 @@ public class ScraperService : IScraperService
                     CurrentItem = record.ToolDescription
                 });
 
-                // Only process registered/supported tool types.
-                // Unsupported types (Facemill, Insert Endmill, etc.) get all #NA.
-                if (!record.IsSupportedType)
-                {
-                    ApplyResult(record, ToolSpecResult.AllNA());
-                    Interlocked.Increment(ref successCount);
-                }
+                var fetchResult = await FetchRecordAsync(session.Id, index, record, ct);
+                ApplyFetchResult(record, fetchResult, session, columnLock);
+
+                if (!fetchResult.Success)
+                    Interlocked.Increment(ref failCount);
+                else if (SupplierPrefixes.IsApiSupported(record.Supplier) && fetchResult.Properties.Count == 0)
+                    Interlocked.Increment(ref failCount);
                 else
-                {
-                    var parser = GetParser(record.Supplier);
-                    if (parser == null)
-                    {
-                        ApplyResult(record, ToolSpecResult.Failed($"Unknown supplier: {record.Supplier}"));
-                        Interlocked.Increment(ref failCount);
-                    }
-                    else
-                    {
-                        var result = await parser.FetchSpecsAsync(record, ct);
-                        ApplyResult(record, result);
-                        if (IsSuccessfulResult(result))
-                            Interlocked.Increment(ref successCount);
-                        else
-                            Interlocked.Increment(ref failCount);
-                    }
-                }
+                    Interlocked.Increment(ref successCount);
 
                 var done = Interlocked.Increment(ref completed);
                 progress?.Report(new ProcessingProgress
@@ -80,7 +75,7 @@ public class ScraperService : IScraperService
 
                 if (onRecordCompleted != null)
                 {
-                    try { await onRecordCompleted(index, record); } catch { /* ignore SignalR send errors */ }
+                    try { await onRecordCompleted(index, record); } catch { /* ignore SignalR errors */ }
                 }
             }
             finally
@@ -95,9 +90,10 @@ public class ScraperService : IScraperService
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // Processing was stopped by user — fall through to final progress report
+            // stopped by user
         }
 
+        session.PropertyColumns.Sort(StringComparer.OrdinalIgnoreCase);
         session.Progress.Completed = completed;
         session.Progress.SuccessCount = successCount;
         session.Progress.FailCount = failCount;
@@ -106,36 +102,54 @@ public class ScraperService : IScraperService
         return session;
     }
 
-    private ISupplierParser? GetParser(string supplier)
+    private async Task<ProductFetchResult> FetchRecordAsync(string sessionId, int index, ToolRecord record, CancellationToken ct)
     {
-        var upper = (supplier ?? "").ToUpperInvariant();
-        return _parsers.FirstOrDefault(p =>
-            upper.Contains(p.SupplierName, StringComparison.OrdinalIgnoreCase));
+        var provider = _providers.GetProvider(record.Supplier);
+        if (provider == null)
+            return ProductFetchResult.Failed($"Unknown supplier: {record.Supplier}");
+
+        var result = await provider.FetchAsync(record, ct);
+
+        if (!string.IsNullOrWhiteSpace(result.ProductUrl))
+            record.WebpageLink = result.ProductUrl;
+
+        if (!string.IsNullOrWhiteSpace(result.RawJson))
+            _catalog.SaveRawProduct(sessionId, index, record.Supplier, result.ProductUrl, result.ItemNumber, result.RawJson);
+
+        if (result.Properties.Count > 0)
+            _catalog.SaveAttributes(sessionId, index, result.Properties);
+
+        return result;
     }
 
-    private static bool IsMissing(string? value) =>
-        string.IsNullOrWhiteSpace(value) || value.Trim().Equals("#NA", StringComparison.OrdinalIgnoreCase);
-
-    private static void ApplyResult(ToolRecord record, ToolSpecResult result)
+    private static void ApplyFetchResult(
+        ToolRecord record,
+        ProductFetchResult result,
+        ProcessSession session,
+        object columnLock)
     {
-        record.ShankBoreDiameter = IsMissing(record.ShankBoreDiameter) ? result.Spec6 : record.ShankBoreDiameter;
-        record.ToolDiameter = IsMissing(record.ToolDiameter) ? result.Spec1 : record.ToolDiameter;
-        record.CornerRad = IsMissing(record.CornerRad) ? result.Spec3 : record.CornerRad;
-        record.FluteCuttingEdgeLength = IsMissing(record.FluteCuttingEdgeLength) ? result.Spec2 : record.FluteCuttingEdgeLength;
-        record.OverallLength = IsMissing(record.OverallLength) ? result.Spec5 : record.OverallLength;
-        record.PeripheralCuttingEdgeCount = IsMissing(record.PeripheralCuttingEdgeCount) ? result.Spec4 : record.PeripheralCuttingEdgeCount;
-        if (!string.IsNullOrEmpty(result.WebpageLink))
-            record.WebpageLink = result.WebpageLink;
+        record.Properties.Clear();
+
+        lock (columnLock)
+        {
+            foreach (var column in session.PropertyColumns)
+                record.Properties[column] = NotAvailable;
+
+            foreach (var (key, value) in result.Properties)
+            {
+                record.Properties[key] = value;
+                if (!session.PropertyColumns.Contains(key, StringComparer.OrdinalIgnoreCase))
+                    session.PropertyColumns.Add(key);
+            }
+
+            if (!SupplierPrefixes.IsApiSupported(record.Supplier))
+            {
+                foreach (var column in session.PropertyColumns)
+                {
+                    if (!record.Properties.ContainsKey(column))
+                        record.Properties[column] = NotAvailable;
+                }
+            }
+        }
     }
-
-    private static bool IsSuccessfulResult(ToolSpecResult result) =>
-        HasAnyValue(result) || !string.IsNullOrEmpty(result.WebpageLink);
-
-    private static bool HasAnyValue(ToolSpecResult r) =>
-        !string.IsNullOrEmpty(r.Spec1) && r.Spec1 != "#NA" ||
-        !string.IsNullOrEmpty(r.Spec2) && r.Spec2 != "#NA" ||
-        !string.IsNullOrEmpty(r.Spec3) && r.Spec3 != "#NA" ||
-        !string.IsNullOrEmpty(r.Spec4) && r.Spec4 != "#NA" ||
-        !string.IsNullOrEmpty(r.Spec5) && r.Spec5 != "#NA" ||
-        !string.IsNullOrEmpty(r.Spec6) && r.Spec6 != "#NA";
 }
