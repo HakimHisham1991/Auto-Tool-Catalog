@@ -1,6 +1,7 @@
 using AutoToolCatalog.Models;
 using AutoToolCatalog.Services.Kennametal;
 using AutoToolCatalog.Services.Seco;
+using AutoToolCatalog.Services.Sandvik;
 
 namespace AutoToolCatalog.Services;
 
@@ -8,13 +9,16 @@ public class ProductDataProviderRegistry
 {
     private readonly IReadOnlyList<IProductDataProvider> _providers;
 
-    public ProductDataProviderRegistry(SecoProductDataProvider seco, KennametalProductDataProvider kennametal)
+    public ProductDataProviderRegistry(
+        SecoProductDataProvider seco,
+        KennametalProductDataProvider kennametal,
+        SandvikProductDataProvider sandvik)
     {
         _providers =
         [
             seco,
             kennametal,
-            new StubProductDataProvider(SupplierPrefixes.Sandvik),
+            sandvik,
             new StubProductDataProvider(SupplierPrefixes.Walter)
         ];
     }

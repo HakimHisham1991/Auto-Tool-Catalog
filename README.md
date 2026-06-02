@@ -1,6 +1,6 @@
 # Auto Tool Catalog
 
-**Version 2.0.x** · Developed by UPECA PDC
+**Version 2.2.x** · Developed by UPECA PDC
 
 A web application that enriches tooling Excel databases with supplier product data. It imports your catalog, fetches specifications from official supplier APIs (with a browser bridge where HTTP is blocked), stores raw JSON in SQLite, and exports an updated workbook with **dynamic property columns** per supplier.
 
@@ -11,7 +11,8 @@ A web application that enriches tooling Excel databases with supplier product da
 - **Process / Fetch Specs** — concurrent supplier lookups with real-time progress (SignalR)
 - **SECO** — full API pipeline; designation-only rows use Playwright site search when no Link column is present
 - **Kennametal** — product-config CAD API (`product-config.net`); `KENN_*` columns from CAD parameters
-- **Sandvik, Walter** — stub providers (`#N/A` until APIs are implemented)
+- **Sandvik** — Coromant product search API; `SAND_*` columns from product detail properties
+- **Walter** — stub provider (`#N/A` until API is implemented)
 - Export completed Excel as `{original_name}_updated.xlsx` (formatted table, hyperlinks on Link)
 - Stop processing mid-run; SignalR reconnect re-joins the session
 
@@ -35,7 +36,8 @@ flowchart LR
   Session --> Scraper[ScraperService]
   Scraper --> Registry[ProductDataProviderRegistry]
   Registry --> SECO[SecoProductDataProvider]
-  Registry --> Stub[Stub providers KENN / SAND / WALT]
+  Registry --> Sandvik[SandvikProductDataProvider]
+  Registry --> Stub[Stub provider WALT]
   SECO --> Api[SecoApiClient]
   Api --> Http[HttpClient]
   Api --> Browser[SecoBrowserApiFetcher Playwright]
@@ -86,13 +88,30 @@ SQLite + UI + export
 Product pages look like:  
 `https://www.kennametal.com/us/en/products/p.{slug}.{productId}.html`
 
+### Sandvik pipeline
+
+```
+Link (…m=8917817) or Tool Description
+        ↓
+Resolve material ID (URL → autocomplete API by order code)
+        ↓
+GET https://www.sandvik.coromant.com/api/productsearch/product?id={materialId}
+        ↓
+Map properties[] (isDetails) → SAND_{title} with units
+        ↓
+SQLite + UI + export
+```
+
+Product pages look like:  
+`https://www.sandvik.coromant.com/en-gb/product-details?c=1K354-1000-XD%201730&m=8917817`
+
 ### Dynamic columns
 
 | Supplier | Column prefix | Status |
 |----------|----------------|--------|
 | SECO | `SECO_` | Live API + browser fallback |
 | KENNAMETAL | `KENN_` | Live CAD API (`product-config.net/catalog3/cad`) |
-| SANDVIK | `SAND_` | Stub (`#N/A`) |
+| SANDVIK | `SAND_` | Live product API (`sandvik.coromant.com/api/productsearch`) |
 | WALTER | `WALT_` | Stub (`#N/A`) |
 
 Legacy fixed columns (Type, Shank/Bore Ø, Tool Ø, Corner rad, Flute length, OAL, Edge count) were removed in v2.0. Extra columns in your source Excel are **ignored** on import.
@@ -217,7 +236,7 @@ The `.csproj` already excludes `Tools/**` from web content copying; a one-time c
 | Unknown supplier | Row fails; error on fetch result |
 | SECO: cannot resolve item / JSON | Row fails |
 | SECO: empty attributes | Row fails |
-| Stub supplier (KENN/SAND/WALT) | Success with no properties; dynamic cells show `#N/A` when columns exist |
+| Stub supplier (WALTER) | Success with no properties; dynamic cells show `#N/A` when columns exist |
 | User stop | `OperationCanceledException`; partial results kept |
 
 ## Adding a new supplier API

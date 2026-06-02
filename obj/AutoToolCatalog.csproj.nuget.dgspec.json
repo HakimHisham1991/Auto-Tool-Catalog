@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj": {}
+    "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj": {}
   },
   "projects": {
-    "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj": {
+    "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj",
+        "projectUniqueName": "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj",
         "projectName": "AutoToolCatalog",
-        "projectPath": "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj",
+        "projectPath": "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj",
         "packagesPath": "C:\\Users\\hakim.hisham\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\obj\\",
+        "outputPath": "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

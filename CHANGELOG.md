@@ -2,6 +2,13 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.2.0] - 2026-06-02
+
+### Added
+- Sandvik product data via `https://www.sandvik.coromant.com/api/productsearch/product?id={materialId}`.
+- Resolves material ID from Sandvik product URLs (`m=` query) or autocomplete search by tool description.
+- Dynamic columns prefixed `SAND_` (e.g. `SAND_DC`, `SAND_APMX`, `SAND_OAL`) from product detail properties.
+
 ## [2.1.0] - 2026-06-02
 
 ### Added
