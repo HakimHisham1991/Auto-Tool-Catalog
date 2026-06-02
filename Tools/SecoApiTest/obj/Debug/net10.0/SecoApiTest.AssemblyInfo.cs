@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SecoApiTest")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+61193bf0711f961a32173dd3ced0918d9c826935")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+385a71b6ead1fdf4e027655b5e967be38d110465")]
 [assembly: System.Reflection.AssemblyProductAttribute("SecoApiTest")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SecoApiTest")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -2,7 +2,7 @@
 @model AutoToolCatalog.Pages.IndexModel
 @{
     ViewData["Title"] = "Auto Tool Catalog";
-    const string AppVersion = "2.3.2";
+    const string AppVersion = "2.4.0";
     ViewData["AppVersion"] = AppVersion;
 }
 
@@ -45,7 +45,7 @@
             <div class="col-md-8 offset-md-4">Time: <span id="elapsedTime" class="text-muted">—</span></div>
         </div>
         <div class="small text-muted mt-2" id="processNote">
-            Note: SECO rows without a Link use browser lookup and may take about 1–2 minutes per row.
+            Note: SECO uses a built-in master list (~1,000 tools) to resolve item numbers instantly, plus a shared browser (GetFullProduct is blocked over plain HTTP). Rows with a Link or a master-list match are usually a few seconds each; only rows that miss both need site search (~30–90 seconds per row).
         </div>
         <div class="small text-muted" id="importStatus" style="display: none;">
             Status: <span id="importStatusText">—</span>

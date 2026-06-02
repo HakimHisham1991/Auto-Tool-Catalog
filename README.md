@@ -53,7 +53,7 @@ flowchart LR
 ```
 Procurement channel / Link / Tool Description
         ↓
-Resolve item number (link → 8-digit ID → search APIs → browser site search)
+Resolve item number (link → master list → 8-digit ID → search APIs → browser site search)
         ↓
 GetFullProduct JSON (HTTP, or capture from product page in Chromium)
         ↓
@@ -66,12 +66,16 @@ Save attributes → SQLite (product_attributes)
 Merge into session → UI + export
 ```
 
-**Browser bridge** is used when:
+**Master list** (`Data/SECO_GLOBAL_ID.xlsx`, ~1,000 tools) is seeded once into a SQLite table (`seco_global_ids`) and loaded into an in-memory dictionary at startup (`SecoGlobalIdStore`). A `Tool Description → Seco Global Number` hit resolves the item number with no network call, so even rows without a Link skip the slow site search. The Excel is re-seeded only when it changes (a length+mtime signature is stored in `app_meta`).
 
-- Direct `GET` to `https://www.secotools.com/core/api/Products/GetFullProduct` returns **405**, or
-- There is **no Link** column — the app searches [secotools.com](https://www.secotools.com) by tool description, then loads the product page and captures the same API response the site uses.
+**Browser bridge** is still used because direct `GET` to `GetFullProduct` returns **405** outside the site. The app keeps **one shared Chromium** instance and fetches JSON via in-page `fetch` (fast when an item number or Link is known).
 
-Expect about **1–2 minutes per SECO row** without a link (serialized through a single browser gate).
+| SECO row type | Typical speed (shared browser) |
+|---------------|--------------------------------|
+| Link, 8-digit item, or master-list match | ~2–7 s per row after warmup |
+| Designation that misses Link **and** master list | ~30–90 s per row (site search + product load) |
+
+To add coverage, append rows to `Data/SECO_GLOBAL_ID.xlsx` (columns: `Seco Global Number`, `Tool Description`); the table re-seeds on next startup. Rows that miss everything fall back to a single serialized browser gate; other suppliers stay on HTTP APIs.
 
 ### Kennametal pipeline
 
@@ -181,6 +185,9 @@ Auto-Tool-Catalog/
 │   ├── PlaywrightBootstrap.cs    # Chromium install on startup
 │   ├── Seco/
 │   │   ├── SecoApiClient.cs
+│   │   ├── SecoHttpSession.cs          # shared HTTP + cookie warmup
+│   │   ├── SecoPlaywrightPool.cs       # shared Chromium + in-page fetch
+│   │   ├── SecoGlobalIdStore.cs        # master list → SQLite + in-memory lookup
 │   │   ├── SecoBrowserApiFetcher.cs
 │   │   └── SecoProductDataProvider.cs
 │   ├── Kennametal/

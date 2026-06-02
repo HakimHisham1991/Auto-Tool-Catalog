@@ -2,6 +2,22 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.4.0] - 2026-06-02
+
+### Added
+- SECO master list: `Data/SECO_GLOBAL_ID.xlsx` (~1,000 tools) is seeded into a SQLite table (`seco_global_ids`) and loaded into an in-memory dictionary at startup for O(1) `Tool Description → Seco Global Number` lookups.
+- New `SecoGlobalIdStore` service; re-seeds automatically only when the Excel file changes (tracked via `app_meta` signature).
+
+### Changed
+- SECO item-number resolution now checks the Link, then the master list, before any network/browser work. Designation-only rows that match the master list skip site search and go straight to the fast in-page fetch (~6–7 s warm vs ~30–90 s previously).
+
+## [2.3.3] - 2026-06-02
+
+### Changed
+- SECO performance: reuse one Playwright Chromium instance per app run; fetch `GetFullProduct` via in-page `fetch` when item number is known (avoids launching a new browser per row).
+- SECO HTTP item resolution uses a shared warmed cookie session (single homepage warmup per process).
+- SECO designation search tries `/search?q=` navigation before the slower search-box UI flow.
+
 ## [2.3.2] - 2026-06-02
 
 ### Fixed

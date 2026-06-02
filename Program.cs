@@ -22,6 +22,18 @@ builder.Services.AddScoped<SandvikProductDataProvider>();
 builder.Services.AddScoped<WalterProductDataProvider>();
 builder.Services.AddScoped<ProductDataProviderRegistry>();
 builder.Services.AddScoped<IScraperService, ScraperService>();
+builder.Services.AddSingleton<ISecoGlobalIdStore>(sp =>
+{
+    var env = sp.GetRequiredService<IWebHostEnvironment>();
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    var dbPath = cfg["CatalogDb:Path"];
+    if (string.IsNullOrWhiteSpace(dbPath))
+        dbPath = Path.Combine(env.ContentRootPath, "Data", "catalog.db");
+    var excelPath = Path.Combine(env.ContentRootPath, "Data", "SECO_GLOBAL_ID.xlsx");
+    var store = new SecoGlobalIdStore(excelPath, dbPath);
+    store.Initialize();
+    return store;
+});
 builder.Services.AddScoped<ISecoApiClient, SecoApiClient>();
 builder.Services.AddScoped<IKennametalApiClient, KennametalApiClient>();
 builder.Services.AddScoped<ISandvikApiClient, SandvikApiClient>();
@@ -55,6 +67,9 @@ var app = builder.Build();
 
 var catalog = app.Services.GetRequiredService<ICatalogRepository>();
 catalog.Initialize();
+
+var secoGlobalIds = app.Services.GetRequiredService<ISecoGlobalIdStore>();
+app.Logger.LogInformation("SECO master list loaded: {Count} global IDs", secoGlobalIds.Count);
 
 PlaywrightBootstrap.EnsureBrowsersInstalled(app.Logger);
 
