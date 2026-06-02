@@ -2,6 +2,13 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [1.2.7] - 2026-06-02
+
+### Changed
+- Excel export columns match the web Data Preview layout and headers.
+- Export auto-fits column widths, center/middle-aligns all cells, and applies Table Style Medium 6.
+- Excel import column order updated to match export.
+
 ## [1.2.6] - 2026-06-02
 
 ### Changed
