@@ -1,6 +1,6 @@
 # Auto Tool Catalog
 
-**Version 2.2.x** · Developed by UPECA PDC
+**Version 2.3.x** · Developed by UPECA PDC
 
 A web application that enriches tooling Excel databases with supplier product data. It imports your catalog, fetches specifications from official supplier APIs (with a browser bridge where HTTP is blocked), stores raw JSON in SQLite, and exports an updated workbook with **dynamic property columns** per supplier.
 
@@ -12,7 +12,8 @@ A web application that enriches tooling Excel databases with supplier product da
 - **SECO** — full API pipeline; designation-only rows use Playwright site search when no Link column is present
 - **Kennametal** — product-config CAD API (`product-config.net`); `KENN_*` columns from CAD parameters
 - **Sandvik** — Coromant product search API; `SAND_*` columns from product detail properties
-- **Walter** — stub provider (`#N/A` until API is implemented)
+- **Walter** — Walter product search API; `WALT_*` columns from product `columns` + `items[]`
+- Progress panel shows **Success / Failed / Current** and elapsed **Time** (`hh:mm:ss`) while processing
 - Export completed Excel as `{original_name}_updated.xlsx` (formatted table, hyperlinks on Link)
 - Stop processing mid-run; SignalR reconnect re-joins the session
 
@@ -36,8 +37,9 @@ flowchart LR
   Session --> Scraper[ScraperService]
   Scraper --> Registry[ProductDataProviderRegistry]
   Registry --> SECO[SecoProductDataProvider]
+  Registry --> Kennametal[KennametalProductDataProvider]
   Registry --> Sandvik[SandvikProductDataProvider]
-  Registry --> Stub[Stub provider WALT]
+  Registry --> Walter[WalterProductDataProvider]
   SECO --> Api[SecoApiClient]
   Api --> Http[HttpClient]
   Api --> Browser[SecoBrowserApiFetcher Playwright]
@@ -105,6 +107,23 @@ SQLite + UI + export
 Product pages look like:  
 `https://www.sandvik.coromant.com/en-gb/product-details?c=1K354-1000-XD%201730&m=8917817`
 
+### Walter pipeline
+
+```
+Link (/search/product/{id}) or Tool Description (first token, lowercased)
+        ↓
+GET https://www.walter-tools.com/api/productsearch/getproduct?id={id}&measurementUnit=Metric&language=en-gb
+        ↓
+Require hitCount > 0; map columns[] (showInDetails/showInList) → WALT_{title} from first items[]
+        ↓
+SQLite + UI + export
+```
+
+Product pages look like:  
+`https://www.walter-tools.com/en-gb/search/product/dc180-05-05.500a1-wj30ez`
+
+Ordering codes in Excel (e.g. `DC165-05-08.000A1-WJ30UU`, `F2162-8`, `A3289DPL-12`) are passed as lowercase `id` values. If Walter returns `hitCount: 0`, the row fails with **Walter product not found**.
+
 ### Dynamic columns
 
 | Supplier | Column prefix | Status |
@@ -112,7 +131,7 @@ Product pages look like:
 | SECO | `SECO_` | Live API + browser fallback |
 | KENNAMETAL | `KENN_` | Live CAD API (`product-config.net/catalog3/cad`) |
 | SANDVIK | `SAND_` | Live product API (`sandvik.coromant.com/api/productsearch`) |
-| WALTER | `WALT_` | Stub (`#N/A`) |
+| WALTER | `WALT_` | Live product API (`walter-tools.com/api/productsearch/getproduct`) |
 
 Legacy fixed columns (Type, Shank/Bore Ø, Tool Ø, Corner rad, Flute length, OAL, Edge count) were removed in v2.0. Extra columns in your source Excel are **ignored** on import.
 
@@ -155,16 +174,23 @@ Auto-Tool-Catalog/
 │   ├── ExcelService.cs           # Import/export core + dynamic columns
 │   ├── ScraperService.cs         # Orchestration, concurrency (5)
 │   ├── ProductDataProviderRegistry.cs
-│   ├── StubProductDataProvider.cs
+│   ├── StubProductDataProvider.cs  # Fallback for unknown suppliers
 │   ├── PlaywrightBootstrap.cs    # Chromium install on startup
 │   ├── Seco/
 │   │   ├── SecoApiClient.cs
 │   │   ├── SecoBrowserApiFetcher.cs
 │   │   └── SecoProductDataProvider.cs
-│   └── Kennametal/
-│       ├── KennametalApiClient.cs
-│       └── KennametalProductDataProvider.cs
+│   ├── Kennametal/
+│   │   ├── KennametalApiClient.cs
+│   │   └── KennametalProductDataProvider.cs
+│   ├── Sandvik/
+│   │   ├── SandvikApiClient.cs
+│   │   └── SandvikProductDataProvider.cs
+│   └── Walter/
+│       ├── WalterApiClient.cs
+│       └── WalterProductDataProvider.cs
 ├── Models/Kennametal/KennametalCadDto.cs
+├── Models/Sandvik/                 # Sandvik API DTOs
 ├── Tools/
 │   ├── SecoApiTest/              # Manual SECO integration test
 │   └── KennametalApiTest/        # Manual Kennametal integration test
@@ -227,6 +253,7 @@ The `.csproj` already excludes `Tools/**` from web content copying; a one-time c
 |---------|----------|---------|
 | SQLite path | `appsettings.json` → `CatalogDb:Path` | `Data/catalog.db` under content root |
 | Max concurrent rows | `ScraperService` | 5 |
+| Supplier HTTP clients | `Program.cs` → `AddHttpClient` | `SECO`, `KENNAMETAL`, `SANDVIK`, `WALTER` |
 | SECO browser | Serialized (`BrowserGate` in `SecoBrowserApiFetcher`) | 1 Chromium at a time |
 
 ## Error handling
@@ -236,7 +263,9 @@ The `.csproj` already excludes `Tools/**` from web content copying; a one-time c
 | Unknown supplier | Row fails; error on fetch result |
 | SECO: cannot resolve item / JSON | Row fails |
 | SECO: empty attributes | Row fails |
-| Stub supplier (WALTER) | Success with no properties; dynamic cells show `#N/A` when columns exist |
+| Kennametal / Sandvik / Walter: cannot resolve ID or empty response | Row fails |
+| Walter: `hitCount: 0` | Row fails (**Walter product not found**) |
+| Unknown / stub supplier | Success with no properties; dynamic cells show `#N/A` when columns exist |
 | User stop | `OperationCanceledException`; partial results kept |
 
 ## Adding a new supplier API
@@ -282,7 +311,7 @@ docker run -p 8080:8080 -e ASPNETCORE_URLS=http://+:8080 auto-tool-catalog
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history (2.0.0 = API/SQLite/dynamic columns; 2.0.3+ = SECO browser search; 2.0.4 = export naming and UI notes).
+See [CHANGELOG.md](CHANGELOG.md) for version history (2.0.0 = API/SQLite/dynamic columns; 2.1.0 = Kennametal; 2.2.0 = Sandvik; 2.3.0 = Walter; 2.2.1 = processing elapsed time in UI).
 
 ## License
 

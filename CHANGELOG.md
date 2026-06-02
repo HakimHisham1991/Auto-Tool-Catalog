@@ -2,6 +2,11 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.3.1] - 2026-06-02
+
+### Changed
+- README updated for v2.3.x: Walter API pipeline, all four live suppliers, project layout, error handling, and changelog summary.
+
 ## [2.2.0] - 2026-06-02
 
 ### Added
