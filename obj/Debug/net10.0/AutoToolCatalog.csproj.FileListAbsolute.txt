@@ -370,7 +370,6 @@ C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\playwright.ps1
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\AutoToolCatalog.staticwebassets.runtime.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\AutoToolCatalog.staticwebassets.endpoints.json
-C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\AutoToolCatalog.exe
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\AutoToolCatalog.deps.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\AutoToolCatalog.runtimeconfig.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\AutoToolCatalog.dll
@@ -505,3 +504,5 @@ C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\kenn_suggest_my.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\kenn_suggest_us.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\kenn_ws.json
+C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\appsettings.Production.json
+C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\Data\SECO_GLOBAL_ID.xlsx

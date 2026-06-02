@@ -6,6 +6,7 @@ public static class SupplierPrefixes
     public const string Kennametal = "KENNAMETAL";
     public const string Sandvik = "SANDVIK";
     public const string Walter = "WALTER";
+    public const string TaeguTec = "TAEGUTEC";
 
     public static string Normalize(string channel)
     {
@@ -14,6 +15,7 @@ public static class SupplierPrefixes
         if (upper.Contains("KENNAMETAL")) return Kennametal;
         if (upper.Contains("SANDVIK")) return Sandvik;
         if (upper.Contains("WALTER")) return Walter;
+        if (upper.Contains("TAEGU")) return TaeguTec;
         return upper.Trim();
     }
 
@@ -23,6 +25,7 @@ public static class SupplierPrefixes
         Kennametal => "KENN_",
         Sandvik => "SAND_",
         Walter => "WALT_",
+        TaeguTec => "TAEG_",
         _ => $"{supplier}_"
     };
 
@@ -30,5 +33,6 @@ public static class SupplierPrefixes
         supplier.Equals(Seco, StringComparison.OrdinalIgnoreCase) ||
         supplier.Equals(Kennametal, StringComparison.OrdinalIgnoreCase) ||
         supplier.Equals(Sandvik, StringComparison.OrdinalIgnoreCase) ||
-        supplier.Equals(Walter, StringComparison.OrdinalIgnoreCase);
+        supplier.Equals(Walter, StringComparison.OrdinalIgnoreCase) ||
+        supplier.Equals(TaeguTec, StringComparison.OrdinalIgnoreCase);
 }

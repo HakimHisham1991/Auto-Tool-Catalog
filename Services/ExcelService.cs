@@ -122,7 +122,8 @@ public class ExcelService : IExcelService
     private static bool LooksLikeSupplier(string value)
     {
         var upper = value.ToUpperInvariant();
-        return upper.Contains("SECO") || upper.Contains("KENNAMETAL") || upper.Contains("SANDVIK") || upper.Contains("WALTER");
+        return upper.Contains("SECO") || upper.Contains("KENNAMETAL") || upper.Contains("SANDVIK") ||
+               upper.Contains("WALTER") || upper.Contains("TAEGU");
     }
 
     private static Dictionary<string, int> MapColumns(IXLRow headerRow)

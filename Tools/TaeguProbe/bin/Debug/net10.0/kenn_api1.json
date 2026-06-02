@@ -1,0 +1,16 @@
+
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html>
+    <head><title>404 Resource at '/bin/kennametal/search' not found: No resource found</title><script defer="defer" type="text/javascript" src="https://rum.hlx.page/.rum/@adobe/helix-rum-js@%5E2/dist/rum-standalone.js" data-routing="env=prod,tier=publish,ams=Kennametal Inc. (Enterprise)" data-status="404"></script>
+</head>
+    <body>
+        <h1>Resource at '/bin/kennametal/search' not found: No resource found</h1>
+        <p>Cannot serve request to /bin/kennametal/search on this server</p>
+        
+        
+        
+        <hr>
+        <address>Apache Sling</address>
+    </body>
+</html>
+

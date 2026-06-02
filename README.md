@@ -131,6 +131,25 @@ Product pages look like:
 
 Ordering codes in Excel (e.g. `DC165-05-08.000A1-WJ30UU`, `F2162-8`, `A3289DPL-12`) are passed as lowercase `id` values. If Walter returns `hitCount: 0`, the row fails with **Walter product not found**.
 
+### TaeguTec pipeline (IMC e-catalog)
+
+There is **no public JSON/XHR API** for specs on [imc-companies.com/TaeguTec](https://www.imc-companies.com/TaeguTec/ttkCatalog/). Dimensions (DC, OAL, APMX, NOF, grade, etc.) are rendered in the **HTML item page** table.
+
+```
+Link (item.aspx?cat=6127491) or Tool Description (e.g. HSF 6050XLT 250)
+        ↓
+Load item.aspx (HTTP when allowed, else Playwright — site may use Cloudflare)
+        ↓
+Parse HTML specification table → TAEG_DC, TAEG_OAL, TAEG_APMX, …
+        ↓
+SQLite + UI + export
+```
+
+Example product page:  
+`https://www.imc-companies.com/TaeguTec/ttkCatalog/item.aspx?cat=6127491&…` → **HSF 6050XLT 250** (catalog no. `6127491`).
+
+**Tip:** Put the full `item.aspx` link in the Excel **Link** column when possible — fastest and most reliable. Procurement channel: `TAEGUTEC` or any value containing `TAEGU`.
+
 ### Dynamic columns
 
 | Supplier | Column prefix | Status |
@@ -139,6 +158,7 @@ Ordering codes in Excel (e.g. `DC165-05-08.000A1-WJ30UU`, `F2162-8`, `A3289DPL-1
 | KENNAMETAL | `KENN_` | Live CAD API (`product-config.net/catalog3/cad`) |
 | SANDVIK | `SAND_` | Live product API (`sandvik.coromant.com/api/productsearch`) |
 | WALTER | `WALT_` | Live product API (`walter-tools.com/api/productsearch/getproduct`) |
+| TAEGUTEC | `TAEG_` | HTML catalog scrape (`imc-companies.com/TaeguTec/ttkCatalog`) |
 
 Legacy fixed columns (Type, Shank/Bore Ø, Tool Ø, Corner rad, Flute length, OAL, Edge count) were removed in v2.0. Extra columns in your source Excel are **ignored** on import.
 

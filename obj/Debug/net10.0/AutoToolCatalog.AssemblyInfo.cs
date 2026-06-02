@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AutoToolCatalog")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+385a71b6ead1fdf4e027655b5e967be38d110465")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b8c0ceec5427c9b4e7857637073c9c0d53de75a6")]
 [assembly: System.Reflection.AssemblyProductAttribute("AutoToolCatalog")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AutoToolCatalog")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -2,6 +2,12 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.6.0] - 2026-06-02
+
+### Added
+- TaeguTec (IMC e-catalog) integration: no public JSON API — specifications (DC, OAL, APMX, etc.) are read from the **item.aspx HTML table** via `TaeguTecHtmlParser`, with Playwright fallback when Cloudflare blocks plain HTTP.
+- Resolve catalog number from Link (`cat=6127491`) or search by tool description (e.g. `HSF 6050XLT 250`). Dynamic columns use `TAEG_` prefix.
+
 ## [2.5.3] - 2026-06-02
 
 ### Fixed
