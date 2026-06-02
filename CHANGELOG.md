@@ -2,6 +2,11 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.0.5] - 2026-06-02
+
+### Changed
+- README rewritten for v2.0 architecture (API pipeline, SQLite, dynamic columns, SECO Playwright bridge, project layout, API reference).
+
 ## [2.0.4] - 2026-06-02
 
 ### Changed
