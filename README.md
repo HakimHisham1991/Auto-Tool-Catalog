@@ -290,12 +290,51 @@ Do **not** place new tool projects under `Tools/` without keeping the `Content R
 ## Publish for production
 
 ```bash
-dotnet publish -c Release -o ./publish
+dotnet publish AutoToolCatalog.csproj -c Release -o ./publish
 cd publish
 dotnet AutoToolCatalog.dll
 ```
 
 Production hosts need Chromium available for Playwright if you rely on SECO rows without links (install browsers on the server or bake them into the deployment image).
+
+### Deploy to MonsterASP.NET (FTP / manual)
+
+Web Deploy is optional; **FTP + manual upload** is the supported path for this host.
+
+**1. Build locally (or use GitHub Actions)**
+
+```powershell
+.\scripts\publish-for-ftp.ps1
+```
+
+Output folder (default): `C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean`
+
+Or publish manually:
+
+```bash
+dotnet publish AutoToolCatalog.csproj -c Release -o "C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean"
+```
+
+On GitHub: **Actions → “Build for MonsterASP.NET (FTP)” →** download the **monsterasp-publish** artifact from the latest run.
+
+**2. Copy files into `wwwroot`**
+
+Use [WebFTP](https://webftp.monsterasp.net) or any FTP client:
+
+| Setting | Value |
+|---------|--------|
+| Host | `site72127.siteasp.net` (use hostname, not IP) |
+| Port | `21` (FTP) |
+| Login | your site login |
+| Remote folder | `wwwroot` (or the folder that already contains your site files) |
+
+Upload **everything inside** `publish_clean` (e.g. `AutoToolCatalog.dll`, `web.config`, `Data/SECO_GLOBAL_ID.xlsx`) into that remote folder. Do not upload an extra nested folder unless you intend the site URL to include that path.
+
+**3. Optional: GitHub Actions FTP upload**
+
+Add repository secrets: `FTP_SERVER` (`site72127.siteasp.net`), `FTP_USERNAME`, `FTP_PASSWORD` (FTP password, not Web Deploy).
+
+Run the workflow manually (**Actions → Run workflow**) and check **Deploy to FTP**. If files land in the wrong place, edit `server-dir` in `.github/workflows/deploy.yml` — use `./` when FTP already opens inside `wwwroot`.
 
 ### Docker (optional)
 

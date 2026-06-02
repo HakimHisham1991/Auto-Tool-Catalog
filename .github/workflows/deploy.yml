@@ -1,14 +1,21 @@
-name: Build and deploy to MonsterASP.NET
+name: Build for MonsterASP.NET (FTP)
 
+# Default: build only + upload a zip-like artifact so you can copy files to wwwroot yourself.
+# Optional: run manually with "Deploy to FTP" checked to push ./publish to your site.
 on:
   push:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      deploy_ftp:
+        description: Upload publish folder to MonsterASP FTP (wwwroot)
+        required: false
+        type: boolean
+        default: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: windows-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,14 +26,25 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Publish web app
-        # Only the web project is published; the Tools/* helper projects are excluded.
         run: dotnet publish AutoToolCatalog.csproj --configuration Release --output ./publish
 
-      - name: Deploy to MonsterASP.NET via Web Deploy
-        uses: rasmusbuchholdt/simply-web-deploy@2.2.0
+      - name: Upload publish folder (manual FTP / WebFTP)
+        uses: actions/upload-artifact@v4
         with:
-          website-name: ${{ secrets.WEBSITE_NAME }}
-          server-computer-name: ${{ secrets.SERVER_COMPUTER_NAME }}
-          server-username: ${{ secrets.SERVER_USERNAME }}
-          server-password: ${{ secrets.SERVER_PASSWORD }}
-          source-path: '\publish\'
+          name: monsterasp-publish
+          path: publish/
+          retention-days: 14
+
+      - name: Deploy to MonsterASP FTP
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy_ftp == true
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: 21
+          protocol: ftp
+          local-dir: ./publish/
+          # MonsterASP website files live under wwwroot. If FTP already opens in wwwroot, change to server-dir: ./
+          server-dir: ./wwwroot/
+          dangerous-clean-slate: false

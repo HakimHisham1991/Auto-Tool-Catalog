@@ -2,6 +2,17 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.5.2] - 2026-06-02
+
+### Changed
+- `scripts/publish-for-ftp.ps1` now publishes to `C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean` by default (optional `-OutputPath` override).
+
+## [2.5.1] - 2026-06-02
+
+### Changed
+- GitHub Actions deploy workflow switched from Web Deploy to **FTP**: every run uploads a **monsterasp-publish** artifact for manual copy to `wwwroot`; optional FTP upload when you run the workflow manually with **Deploy to FTP** enabled (secrets: `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`).
+- Added `scripts/publish-for-ftp.ps1` and README instructions for MonsterASP FTP / WebFTP manual deployment.
+
 ## [2.5.0] - 2026-06-02
 
 ### Added

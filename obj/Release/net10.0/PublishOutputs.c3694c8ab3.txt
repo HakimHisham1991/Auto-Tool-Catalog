@@ -373,6 +373,7 @@ C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\.playwright\package\ty
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\.playwright\package\types\structs.d.ts
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\.playwright\package\types\types.d.ts
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\playwright.ps1
+C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\Data\SECO_GLOBAL_ID.xlsx
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\AutoToolCatalog.dll
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\AutoToolCatalog.deps.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\AutoToolCatalog.runtimeconfig.json
