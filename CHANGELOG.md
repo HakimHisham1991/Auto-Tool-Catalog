@@ -2,6 +2,12 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.5.0] - 2026-06-02
+
+### Added
+- GitHub Actions workflow (`.github/workflows/deploy.yml`): builds and publishes the web project, then deploys to MonsterASP.NET via Web Deploy (port 8172) on every push to `main`/`master` (and manual `workflow_dispatch`). Credentials are read from repository secrets (`WEBSITE_NAME`, `SERVER_COMPUTER_NAME`, `SERVER_USERNAME`, `SERVER_PASSWORD`).
+- `Data/SECO_GLOBAL_ID.xlsx` is now copied to the publish output (`CopyToPublishDirectory`) so the SECO master list seeds on the server.
+
 ## [2.4.0] - 2026-06-02
 
 ### Added

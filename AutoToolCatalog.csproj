@@ -17,6 +17,14 @@
     <InternalsVisibleTo Include="SecoApiTest" />
   </ItemGroup>
 
+  <!-- Ship the SECO master list so SecoGlobalIdStore can seed the lookup on the server. -->
+  <ItemGroup>
+    <None Update="Data\SECO_GLOBAL_ID.xlsx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.104.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
