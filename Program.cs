@@ -71,7 +71,12 @@ catalog.Initialize();
 var secoGlobalIds = app.Services.GetRequiredService<ISecoGlobalIdStore>();
 app.Logger.LogInformation("SECO master list loaded: {Count} global IDs", secoGlobalIds.Count);
 
-PlaywrightBootstrap.EnsureBrowsersInstalled(app.Logger);
+// Playwright browser install at startup can crash or hang on shared hosting (MonsterASP).
+if (app.Environment.IsDevelopment() ||
+    app.Configuration.GetValue("Playwright:InstallOnStartup", false))
+{
+    PlaywrightBootstrap.EnsureBrowsersInstalled(app.Logger);
+}
 
 if (!app.Environment.IsDevelopment())
 {

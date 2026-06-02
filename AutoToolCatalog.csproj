@@ -4,6 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- MonsterASP.NET: InProcess + DLL (see web.config). OutOfProcess + EXE disables the app pool. -->
+    <AspNetCoreHostingModel>InProcess</AspNetCoreHostingModel>
+    <!-- IIS publish: DLL only — do not upload AutoToolCatalog.exe to shared hosting. -->
+    <UseAppHost>false</UseAppHost>
   </PropertyGroup>
 
   <!-- Keep the Tools/ helper projects fully out of the web project's globbing.
@@ -24,6 +28,14 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>
+
+  <!-- Chromium bundles are huge and cannot run on typical shared hosting; exclude from FTP publish. -->
+  <Target Name="ExcludePlaywrightFromPublish" BeforeTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+        Condition="$([System.String]::Copy('%(RelativePath)').Contains('.playwright'))" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.104.1" />

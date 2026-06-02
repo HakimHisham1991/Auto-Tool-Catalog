@@ -12,7 +12,8 @@ New-Item -ItemType Directory -Path $out -Force | Out-Null
 
 Push-Location $projectRoot
 try {
-    dotnet publish AutoToolCatalog.csproj --configuration Release --output $out
+    # UseAppHost=false: publish DLL only (MonsterASP OutOfProcess + EXE disables the app pool).
+    dotnet publish AutoToolCatalog.csproj --configuration Release --output $out -p:UseAppHost=false
     Write-Host ""
     Write-Host "Ready to upload:" -ForegroundColor Green
     Write-Host "  $out"

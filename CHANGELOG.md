@@ -2,6 +2,11 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.5.3] - 2026-06-02
+
+### Fixed
+- MonsterASP hosting: publish **DLL only** (`UseAppHost=false`), force **InProcess** hosting model, skip Playwright install on production startup, exclude `.playwright` from publish; README documents app-pool disabled error and control-panel settings.
+
 ## [2.5.2] - 2026-06-02
 
 ### Changed

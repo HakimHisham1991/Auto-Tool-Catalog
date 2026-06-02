@@ -312,7 +312,7 @@ Output folder (default): `C:\Users\Public\Documents\Auto-Tool-Catalog\publish_cl
 Or publish manually:
 
 ```bash
-dotnet publish AutoToolCatalog.csproj -c Release -o "C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean"
+dotnet publish AutoToolCatalog.csproj -c Release -o "C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean" -p:UseAppHost=false
 ```
 
 On GitHub: **Actions → “Build for MonsterASP.NET (FTP)” →** download the **monsterasp-publish** artifact from the latest run.
@@ -335,6 +335,20 @@ Upload **everything inside** `publish_clean` (e.g. `AutoToolCatalog.dll`, `web.c
 Add repository secrets: `FTP_SERVER` (`site72127.siteasp.net`), `FTP_USERNAME`, `FTP_PASSWORD` (FTP password, not Web Deploy).
 
 Run the workflow manually (**Actions → Run workflow**) and check **Deploy to FTP**. If files land in the wrong place, edit `server-dir` in `.github/workflows/deploy.yml` — use `./` when FTP already opens inside `wwwroot`.
+
+**4. MonsterASP control panel (required)**
+
+| Setting | Use |
+|---------|-----|
+| .NET version | **.NET 10** |
+| Hosting model | **InProcess** (not OutOfProcess) |
+| Application | **DLL** / `dotnet` — `AutoToolCatalog.dll` via `web.config` |
+
+Do **not** upload `AutoToolCatalog.exe` or run the site as a standalone EXE in **OutOfProcess** mode — MonsterASP will disable the app pool with *AppPool [site72127] is not enabled on server* ([ASP.NET Core hosting models](https://help.monsterasp.net/books/websites/page/aspnet-core-hosting-model-support)).
+
+If the pool is already disabled, open a **support ticket** in the MonsterASP panel and ask them to **re-enable application pool site72127** (you cannot turn it back on yourself after a crash).
+
+After re-enable: republish with `.\scripts\publish-for-ftp.ps1`, upload `web.config` + `AutoToolCatalog.dll` + dependencies (no `.playwright` folder). Set **ASPNETCORE_ENVIRONMENT** to `Production` in the panel if offered.
 
 ### Docker (optional)
 
