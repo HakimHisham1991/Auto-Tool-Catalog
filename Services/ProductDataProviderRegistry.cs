@@ -2,6 +2,7 @@ using AutoToolCatalog.Models;
 using AutoToolCatalog.Services.Kennametal;
 using AutoToolCatalog.Services.Seco;
 using AutoToolCatalog.Services.Sandvik;
+using AutoToolCatalog.Services.Walter;
 
 namespace AutoToolCatalog.Services;
 
@@ -12,14 +13,15 @@ public class ProductDataProviderRegistry
     public ProductDataProviderRegistry(
         SecoProductDataProvider seco,
         KennametalProductDataProvider kennametal,
-        SandvikProductDataProvider sandvik)
+        SandvikProductDataProvider sandvik,
+        WalterProductDataProvider walter)
     {
         _providers =
         [
             seco,
             kennametal,
             sandvik,
-            new StubProductDataProvider(SupplierPrefixes.Walter)
+            walter
         ];
     }
 

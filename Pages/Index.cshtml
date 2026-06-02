@@ -2,7 +2,7 @@
 @model AutoToolCatalog.Pages.IndexModel
 @{
     ViewData["Title"] = "Auto Tool Catalog";
-    const string AppVersion = "2.2.0";
+    const string AppVersion = "2.3.0";
     ViewData["AppVersion"] = AppVersion;
 }
 
@@ -42,6 +42,7 @@
             <div class="col-md-2">Success: <strong id="successCount">0</strong></div>
             <div class="col-md-2">Failed: <strong id="failCount">0</strong></div>
             <div class="col-md-8">Current: <span id="currentItem" class="text-muted">—</span></div>
+            <div class="col-md-8 offset-md-4">Time: <span id="elapsedTime" class="text-muted">—</span></div>
         </div>
         <div class="small text-muted mt-2" id="processNote">
             Note: SECO rows without a Link use browser lookup and may take about 1–2 minutes per row.
@@ -80,9 +81,41 @@
         let sessionId = null;
         let connection = null;
         let propertyColumns = [];
+        let processingStartMs = null;
+        let elapsedTimer = null;
 
         function coreColumnCount() { return 4; }
         function totalColumnCount() { return coreColumnCount() + propertyColumns.length; }
+
+        function formatElapsed(ms) {
+            const totalSeconds = Math.max(0, Math.floor((ms || 0) / 1000));
+            const hh = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const mm = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const ss = String(totalSeconds % 60).padStart(2, '0');
+            return `${hh}:${mm}:${ss}`;
+        }
+
+        function setElapsedText(text) {
+            const el = document.getElementById('elapsedTime');
+            if (el) el.textContent = text;
+        }
+
+        function stopElapsedTimer() {
+            if (elapsedTimer) {
+                clearInterval(elapsedTimer);
+                elapsedTimer = null;
+            }
+        }
+
+        function startElapsedTimer() {
+            stopElapsedTimer();
+            processingStartMs = Date.now();
+            setElapsedText('00:00:00');
+            elapsedTimer = setInterval(() => {
+                if (processingStartMs == null) return;
+                setElapsedText(formatElapsed(Date.now() - processingStartMs));
+            }, 1000);
+        }
 
         function renderTableHead(columns) {
             propertyColumns = columns || [];
@@ -119,6 +152,7 @@
             document.getElementById('successCount').textContent = '0';
             document.getElementById('failCount').textContent = '0';
             document.getElementById('currentItem').textContent = '\u2014';
+            setElapsedText('\u2014');
         }
 
         function finishImportProgress(message) {
@@ -239,6 +273,10 @@
         function onProcessingDone(wasStopped) {
             document.getElementById('btnProcess').disabled = false;
             document.getElementById('btnStop').style.display = 'none';
+            stopElapsedTimer();
+            if (processingStartMs != null) {
+                setElapsedText(formatElapsed(Date.now() - processingStartMs));
+            }
             if (wasStopped) {
                 document.getElementById('currentItem').textContent = 'Stopped by user';
                 document.getElementById('progressBar').classList.remove('progress-bar-animated', 'progress-bar-striped');
@@ -293,6 +331,7 @@
             showProcessingProgress();
             document.getElementById('progressSection').style.display = 'block';
             setProgressBar(0, true);
+            startElapsedTimer();
 
             try {
                 await ensureConnection();
@@ -301,6 +340,9 @@
                 if (!res.ok) throw new Error('Failed to start processing');
             } catch (e) {
                 alert('Error: ' + e.message);
+                stopElapsedTimer();
+                processingStartMs = null;
+                setElapsedText('\u2014');
                 document.getElementById('btnProcess').disabled = false;
                 document.getElementById('btnStop').style.display = 'none';
             }
@@ -314,6 +356,8 @@
                 await fetch('/api/stop/' + sessionId, { method: 'POST' });
             } catch (e) {
                 console.error('Stop failed:', e);
+            } finally {
+                document.getElementById('btnStop').disabled = false;
             }
         });
 

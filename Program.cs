@@ -5,6 +5,7 @@ using AutoToolCatalog.Services;
 using AutoToolCatalog.Services.Kennametal;
 using AutoToolCatalog.Services.Seco;
 using AutoToolCatalog.Services.Sandvik;
+using AutoToolCatalog.Services.Walter;
 using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,11 +19,13 @@ builder.Services.AddScoped<IExcelService, ExcelService>();
 builder.Services.AddScoped<SecoProductDataProvider>();
 builder.Services.AddScoped<KennametalProductDataProvider>();
 builder.Services.AddScoped<SandvikProductDataProvider>();
+builder.Services.AddScoped<WalterProductDataProvider>();
 builder.Services.AddScoped<ProductDataProviderRegistry>();
 builder.Services.AddScoped<IScraperService, ScraperService>();
 builder.Services.AddScoped<ISecoApiClient, SecoApiClient>();
 builder.Services.AddScoped<IKennametalApiClient, KennametalApiClient>();
 builder.Services.AddScoped<ISandvikApiClient, SandvikApiClient>();
+builder.Services.AddScoped<IWalterApiClient, WalterApiClient>();
 
 builder.Services.AddHttpClient("SECO", c =>
 {
@@ -37,6 +40,12 @@ builder.Services.AddHttpClient("KENNAMETAL", c =>
 });
 
 builder.Services.AddHttpClient("SANDVIK", c =>
+{
+    c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    c.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
+});
+
+builder.Services.AddHttpClient("WALTER", c =>
 {
     c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
     c.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");

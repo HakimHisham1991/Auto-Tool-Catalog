@@ -9,6 +9,17 @@ All notable changes to Auto Tool Catalog are documented in this file.
 - Resolves material ID from Sandvik product URLs (`m=` query) or autocomplete search by tool description.
 - Dynamic columns prefixed `SAND_` (e.g. `SAND_DC`, `SAND_APMX`, `SAND_OAL`) from product detail properties.
 
+## [2.3.0] - 2026-06-02
+
+### Added
+- Walter product data via `https://www.walter-tools.com/api/productsearch/getproduct?id={id}&measurementUnit=Metric&language=en-gb`.
+- Dynamic columns prefixed `WALT_` from Walter product `columns` + first `items[]` record.
+
+## [2.2.1] - 2026-06-02
+
+### Added
+- Processing elapsed time display (`Time: hh:mm:ss`) in the progress panel.
+
 ## [2.1.0] - 2026-06-02
 
 ### Added
