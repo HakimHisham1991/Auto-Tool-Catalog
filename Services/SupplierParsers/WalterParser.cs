@@ -43,6 +43,7 @@ public class WalterParser : BaseSupplierParser
                 await Task.Delay(5000, ct);
 
             var result = await ExtractSpecsFromPageAsync(page, record);
+            result.WebpageLink = page.Url;
             await page.CloseAsync();
             return result;
         }

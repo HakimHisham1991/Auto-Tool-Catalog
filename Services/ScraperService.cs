@@ -58,7 +58,7 @@ public class ScraperService : IScraperService
                     {
                         var result = await parser.FetchSpecsAsync(record, ct);
                         ApplyResult(record, result);
-                        if (result.Success || HasAnyValue(result))
+                        if (IsSuccessfulResult(result))
                             Interlocked.Increment(ref successCount);
                         else
                             Interlocked.Increment(ref failCount);
@@ -113,15 +113,23 @@ public class ScraperService : IScraperService
             upper.Contains(p.SupplierName, StringComparison.OrdinalIgnoreCase));
     }
 
+    private static bool IsMissing(string? value) =>
+        string.IsNullOrWhiteSpace(value) || value.Trim().Equals("#NA", StringComparison.OrdinalIgnoreCase);
+
     private static void ApplyResult(ToolRecord record, ToolSpecResult result)
     {
-        record.ShankBoreDiameter = string.IsNullOrEmpty(record.ShankBoreDiameter) ? result.Spec6 : record.ShankBoreDiameter;
-        record.ToolDiameter = string.IsNullOrEmpty(record.ToolDiameter) ? result.Spec1 : record.ToolDiameter;
-        record.CornerRad = string.IsNullOrEmpty(record.CornerRad) ? result.Spec3 : record.CornerRad;
-        record.FluteCuttingEdgeLength = string.IsNullOrEmpty(record.FluteCuttingEdgeLength) ? result.Spec2 : record.FluteCuttingEdgeLength;
-        record.OverallLength = string.IsNullOrEmpty(record.OverallLength) ? result.Spec5 : record.OverallLength;
-        record.PeripheralCuttingEdgeCount = string.IsNullOrEmpty(record.PeripheralCuttingEdgeCount) ? result.Spec4 : record.PeripheralCuttingEdgeCount;
+        record.ShankBoreDiameter = IsMissing(record.ShankBoreDiameter) ? result.Spec6 : record.ShankBoreDiameter;
+        record.ToolDiameter = IsMissing(record.ToolDiameter) ? result.Spec1 : record.ToolDiameter;
+        record.CornerRad = IsMissing(record.CornerRad) ? result.Spec3 : record.CornerRad;
+        record.FluteCuttingEdgeLength = IsMissing(record.FluteCuttingEdgeLength) ? result.Spec2 : record.FluteCuttingEdgeLength;
+        record.OverallLength = IsMissing(record.OverallLength) ? result.Spec5 : record.OverallLength;
+        record.PeripheralCuttingEdgeCount = IsMissing(record.PeripheralCuttingEdgeCount) ? result.Spec4 : record.PeripheralCuttingEdgeCount;
+        if (!string.IsNullOrEmpty(result.WebpageLink))
+            record.WebpageLink = result.WebpageLink;
     }
+
+    private static bool IsSuccessfulResult(ToolSpecResult result) =>
+        HasAnyValue(result) || !string.IsNullOrEmpty(result.WebpageLink);
 
     private static bool HasAnyValue(ToolSpecResult r) =>
         !string.IsNullOrEmpty(r.Spec1) && r.Spec1 != "#NA" ||

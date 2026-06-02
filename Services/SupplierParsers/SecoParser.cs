@@ -32,7 +32,9 @@ public class SecoParser : BaseSupplierParser
             return ParseSpecTable(doc, record);
 
         var productDoc = await FetchHtmlAsync(productUrl, ct);
-        return productDoc != null ? ParseSpecTable(productDoc, record) : ParseSpecTable(doc, record);
+        var fallbackResult = productDoc != null ? ParseSpecTable(productDoc, record) : ParseSpecTable(doc, record);
+        fallbackResult.WebpageLink = productUrl;
+        return fallbackResult;
     }
 
     private async Task<ToolSpecResult?> FetchSpecsWithPlaywrightAsync(ToolRecord record, CancellationToken ct)
@@ -80,6 +82,7 @@ public class SecoParser : BaseSupplierParser
 
             // Step 5: Extract specs from the rendered page
             var result = await ExtractSpecsFromPageAsync(page, record);
+            result.WebpageLink = page.Url;
             await page.CloseAsync();
             return result;
         }

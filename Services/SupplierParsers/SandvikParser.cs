@@ -18,8 +18,12 @@ public class SandvikParser : BaseSupplierParser
         var productUrl = $"{SearchBaseUrl}/en-us/product-details?c={Uri.EscapeDataString(partNo)}";
 
         var result = await FetchSpecsWithPlaywrightAsync(productUrl, record, ct);
-        if (result != null && HasRequiredSpecs(result))
-            return result;
+        if (result != null)
+        {
+            result.WebpageLink ??= productUrl;
+            if (HasRequiredSpecs(result))
+                return result;
+        }
 
         return ToolSpecResult.Failed("Could not extract Sandvik specs");
     }
@@ -58,6 +62,7 @@ public class SandvikParser : BaseSupplierParser
 
             // Extract specs - handles BOTH mm and inch (auto-converts inch→mm)
             var res = await ExtractSpecsFromPageAsync(page, record);
+            res.WebpageLink = page.Url;
             await page.CloseAsync();
             return res;
         }

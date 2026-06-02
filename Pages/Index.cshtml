@@ -1,13 +1,10 @@
 @page
 @model AutoToolCatalog.Pages.IndexModel
 @{
-    ViewData["Title"] = "Tool Catalog Enricher";
+    ViewData["Title"] = "Auto Tool Catalog";
+    const string AppVersion = "1.2.6";
+    ViewData["AppVersion"] = AppVersion;
 }
-
-<div class="mb-4">
-    <h1>Tool Catalog Enricher</h1>
-    <p class="text-muted">Import Excel, fetch specs from supplier sites, export enriched data.</p>
-</div>
 
 <div class="card mb-4">
     <div class="card-body">
@@ -36,15 +33,18 @@
 </div>
 
 <div id="progressSection" class="card mb-4" style="display: none;">
-    <div class="card-header">Progress</div>
+    <div class="card-header" id="progressTitle">Progress</div>
     <div class="card-body">
         <div class="progress mb-2" style="height: 24px;">
             <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
         </div>
-        <div class="row small">
+        <div class="row small" id="progressStats">
             <div class="col-md-2">Success: <strong id="successCount">0</strong></div>
             <div class="col-md-2">Failed: <strong id="failCount">0</strong></div>
             <div class="col-md-8">Current: <span id="currentItem" class="text-muted">—</span></div>
+        </div>
+        <div class="small text-muted" id="importStatus" style="display: none;">
+            Status: <span id="importStatusText">—</span>
         </div>
     </div>
 </div>
@@ -55,11 +55,13 @@
         <span id="recordCount" class="badge bg-secondary">0 rows</span>
     </div>
     <div class="card-body p-0">
-        <table class="table table-sm table-striped mb-0">
+        <table class="table table-sm table-striped table-bordered mb-0 data-preview-table">
             <thead class="table-light">
                 <tr>
                     <th>No.</th>
                     <th>Tool Description</th>
+                    <th>Supplier</th>
+                    <th class="col-link">Link</th>
                     <th>Type</th>
                     <th>Shank/Bore Ø</th>
                     <th>Tool Ø</th>
@@ -67,11 +69,10 @@
                     <th>Flute length</th>
                     <th>OAL</th>
                     <th>Edge count</th>
-                    <th>Supplier</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
-                <tr><td colspan="10" class="text-center text-muted">Import an Excel file to begin.</td></tr>
+                <tr><td colspan="11" class="text-center text-muted">Import an Excel file to begin.</td></tr>
             </tbody>
         </table>
     </div>
@@ -83,6 +84,99 @@
         let sessionId = null;
         let connection = null;
 
+        function setProgressBar(percent, animated) {
+            const bar = document.getElementById('progressBar');
+            const pct = Math.max(0, Math.min(100, Math.round(percent)));
+            bar.style.width = pct + '%';
+            bar.textContent = pct + '%';
+            bar.className = 'progress-bar' + (animated ? ' progress-bar-striped progress-bar-animated' : '');
+        }
+
+        function showImportProgress() {
+            document.getElementById('progressTitle').textContent = 'Import Progress';
+            document.getElementById('progressStats').style.display = 'none';
+            document.getElementById('importStatus').style.display = '';
+            document.getElementById('progressSection').style.display = 'block';
+            setProgressBar(0, true);
+            document.getElementById('importStatusText').textContent = 'Starting import...';
+        }
+
+        function showProcessingProgress() {
+            document.getElementById('progressTitle').textContent = 'Progress';
+            document.getElementById('progressStats').style.display = '';
+            document.getElementById('importStatus').style.display = 'none';
+            document.getElementById('successCount').textContent = '0';
+            document.getElementById('failCount').textContent = '0';
+            document.getElementById('currentItem').textContent = '\u2014';
+        }
+
+        function finishImportProgress(message) {
+            setProgressBar(100, false);
+            document.getElementById('importStatusText').textContent = message;
+            document.getElementById('progressBar').classList.add('bg-success');
+        }
+
+        function resetImportProgressBar() {
+            document.getElementById('progressBar').classList.remove('bg-success', 'bg-warning');
+        }
+
+        function uploadExcel(formData) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/upload');
+                let uploadFinished = false;
+
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable && e.total > 0) {
+                        const uploadPct = Math.round((e.loaded / e.total) * 55);
+                        setProgressBar(uploadPct, true);
+                        document.getElementById('importStatusText').textContent =
+                            `Uploading file... (${Math.round((e.loaded / e.total) * 100)}%)`;
+                    } else {
+                        setProgressBar(25, true);
+                        document.getElementById('importStatusText').textContent = 'Uploading file...';
+                    }
+                });
+
+                xhr.upload.addEventListener('load', () => {
+                    uploadFinished = true;
+                    setProgressBar(60, true);
+                    document.getElementById('importStatusText').textContent = 'Parsing Excel on server...';
+                });
+
+                xhr.addEventListener('load', () => {
+                    let data = {};
+                    if (xhr.responseText) {
+                        try {
+                            data = JSON.parse(xhr.responseText);
+                        } catch {
+                            if (xhr.status >= 400) {
+                                reject(new Error(xhr.responseText.trim() || 'Upload failed'));
+                                return;
+                            }
+                        }
+                    }
+
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(data);
+                        return;
+                    }
+
+                    reject(new Error(data.title || data.detail || xhr.responseText || 'Upload failed'));
+                });
+
+                xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+                xhr.addEventListener('timeout', () => reject(new Error('Upload timed out')));
+                xhr.timeout = 300000;
+                xhr.send(formData);
+
+                if (!uploadFinished) {
+                    setProgressBar(10, true);
+                    document.getElementById('importStatusText').textContent = 'Uploading file...';
+                }
+            });
+        }
+
         // ── SignalR setup ──────────────────────────────────────────────
         async function ensureConnection() {
             if (connection) return;
@@ -93,8 +187,7 @@
 
             // Real-time progress bar updates
             connection.on('ProgressUpdate', p => {
-                document.getElementById('progressBar').style.width = p.percentComplete + '%';
-                document.getElementById('progressBar').textContent = p.percentComplete + '%';
+                setProgressBar(p.percentComplete, !p.isFinished && !p.isStopped);
                 document.getElementById('successCount').textContent = p.successCount ?? 0;
                 document.getElementById('failCount').textContent = p.failCount ?? 0;
                 document.getElementById('currentItem').textContent = p.currentItem || '\u2014';
@@ -108,17 +201,7 @@
             connection.on('RecordUpdated', r => {
                 const row = document.getElementById('row-' + r.index);
                 if (!row) return;
-                row.innerHTML =
-                    `<td>${r.no}</td>` +
-                    `<td>${escapeHtml(r.toolDescription)}</td>` +
-                    `<td>${escapeHtml(r.typeOfTool)}</td>` +
-                    `<td>${escapeHtml(r.shankBoreDiameter || '-')}</td>` +
-                    `<td>${escapeHtml(r.toolDiameter || '-')}</td>` +
-                    `<td>${escapeHtml(r.cornerRad || '-')}</td>` +
-                    `<td>${escapeHtml(r.fluteCuttingEdgeLength || '-')}</td>` +
-                    `<td>${escapeHtml(r.overallLength || '-')}</td>` +
-                    `<td>${escapeHtml(r.peripheralCuttingEdgeCount || '-')}</td>` +
-                    `<td>${escapeHtml(r.procurementChannel)}</td>`;
+                row.innerHTML = buildRowCells(r);
                 row.classList.add('table-success');
                 setTimeout(() => row.classList.remove('table-success'), 1500);
             });
@@ -143,19 +226,32 @@
                 alert('Please select an Excel file.');
                 return;
             }
+
+            const btnImport = document.getElementById('btnImport');
+            btnImport.disabled = true;
+            resetImportProgressBar();
+            showImportProgress();
+
             const formData = new FormData();
             formData.append('file', input.files[0]);
             try {
-                const res = await fetch('/api/upload', { method: 'POST', body: formData });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.title || data.detail || 'Upload failed');
+                const data = await uploadExcel(formData);
+                setProgressBar(85, true);
+                document.getElementById('importStatusText').textContent = 'Loading preview...';
                 sessionId = data.sessionId;
                 document.getElementById('btnProcess').disabled = false;
                 document.getElementById('btnExport').disabled = false;
                 document.getElementById('recordCount').textContent = data.count + ' rows';
                 await loadTable();
+                finishImportProgress(`Import complete (${data.count} rows)`);
             } catch (e) {
+                document.getElementById('progressSection').style.display = 'block';
+                setProgressBar(100, false);
+                document.getElementById('progressBar').classList.add('bg-danger');
+                document.getElementById('importStatusText').textContent = 'Import failed';
                 alert('Upload failed: ' + e.message);
+            } finally {
+                btnImport.disabled = false;
             }
         });
 
@@ -166,10 +262,10 @@
             // Reset UI
             document.getElementById('btnProcess').disabled = true;
             document.getElementById('btnStop').style.display = '';
+            resetImportProgressBar();
+            showProcessingProgress();
             document.getElementById('progressSection').style.display = 'block';
-            document.getElementById('progressBar').className = 'progress-bar progress-bar-striped progress-bar-animated';
-            document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('progressBar').textContent = '0%';
+            setProgressBar(0, true);
 
             try {
                 await ensureConnection();
@@ -201,26 +297,45 @@
             const rows = await res.json();
             const tbody = document.getElementById('tableBody');
             if (!rows || rows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No data.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No data.</td></tr>';
                 return;
             }
             tbody.innerHTML = rows.map((r, i) =>
-                `<tr id="row-${i}">` +
+                `<tr id="row-${i}">${buildRowCells(r)}</tr>`
+            ).join('');
+        }
+
+        function buildRowCells(r) {
+            return (
                 `<td>${r.no}</td>` +
                 `<td>${escapeHtml(r.toolDescription)}</td>` +
+                `<td>${escapeHtml(r.procurementChannel)}</td>` +
+                `<td class="col-link">${formatLinkCell(r.webpageLink)}</td>` +
                 `<td>${escapeHtml(r.typeOfTool)}</td>` +
                 `<td>${escapeHtml(r.shankBoreDiameter || '-')}</td>` +
                 `<td>${escapeHtml(r.toolDiameter || '-')}</td>` +
                 `<td>${escapeHtml(r.cornerRad || '-')}</td>` +
                 `<td>${escapeHtml(r.fluteCuttingEdgeLength || '-')}</td>` +
                 `<td>${escapeHtml(r.overallLength || '-')}</td>` +
-                `<td>${escapeHtml(r.peripheralCuttingEdgeCount || '-')}</td>` +
-                `<td>${escapeHtml(r.procurementChannel)}</td>` +
-                `</tr>`
-            ).join('');
+                `<td>${escapeHtml(r.peripheralCuttingEdgeCount || '-')}</td>`
+            );
         }
 
         function escapeHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+        function escapeAttr(s) {
+            return escapeHtml(s).replace(/"/g, '&quot;');
+        }
+
+        function formatLinkCell(url) {
+            if (!url) return '-';
+            const safeUrl = escapeHtml(url);
+            const tooltip = escapeAttr(url);
+            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="link-clip" title="${tooltip}" aria-label="Open product link">` +
+                `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">` +
+                `<path d="M4.5 3a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 0 1-3 0V5a.5.5 0 0 1 1 0v7a.5.5 0 0 0 1 0V3a1.5 1.5 0 0 0-3 0v9a2.5 2.5 0 0 0 5 0V5a.5.5 0 0 1 1 0v7a3 3 0 0 1-6 0V3z"/>` +
+                `</svg></a>`;
+        }
 
         // ── Export ─────────────────────────────────────────────────────
         document.getElementById('btnExport').addEventListener('click', () => {

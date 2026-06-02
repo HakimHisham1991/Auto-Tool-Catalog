@@ -25,6 +25,8 @@ builder.Services.AddScoped<ISupplierParser, WalterParser>();
 
 var app = builder.Build();
 
+PlaywrightBootstrap.EnsureBrowsersInstalled(app.Logger);
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
@@ -51,7 +53,7 @@ app.MapPost("/api/upload", async (HttpRequest req, IExcelService excel, IProcess
     return Results.Ok(new { sessionId = session.Id, count = records.Count });
 });
 
-app.MapPost("/api/process/{sessionId}", async (string sessionId, IProcessSessionStore store, IScraperService scraper, IHubContext<ProcessingHub> hub) =>
+app.MapPost("/api/process/{sessionId}", (string sessionId, IProcessSessionStore store, IServiceScopeFactory scopeFactory, IHubContext<ProcessingHub> hub) =>
 {
     var session = store.Get(sessionId);
     if (session == null) return Results.NotFound();
@@ -74,12 +76,15 @@ app.MapPost("/api/process/{sessionId}", async (string sessionId, IProcessSession
             record.FluteCuttingEdgeLength,
             record.OverallLength,
             record.PeripheralCuttingEdgeCount,
-            record.ProcurementChannel
+            record.ProcurementChannel,
+            record.WebpageLink
         });
     };
 
     _ = Task.Run(async () =>
     {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var scraper = scope.ServiceProvider.GetRequiredService<IScraperService>();
         await scraper.ProcessAsync(session, progress, onRecordDone, cts.Token);
     });
     return Results.Accepted();
@@ -108,7 +113,8 @@ app.MapGet("/api/records/{sessionId}", (string sessionId, IProcessSessionStore s
         r.FluteCuttingEdgeLength,
         r.OverallLength,
         r.PeripheralCuttingEdgeCount,
-        r.ProcurementChannel
+        r.ProcurementChannel,
+        r.WebpageLink
     });
     return Results.Ok(preview);
 });

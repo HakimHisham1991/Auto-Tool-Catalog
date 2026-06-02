@@ -17,6 +17,7 @@ public class ToolRecord
     public string? OverallLength { get; set; }
     public string? PeripheralCuttingEdgeCount { get; set; }
     public string ProcurementChannel { get; set; } = string.Empty;
+    public string? WebpageLink { get; set; }
 
     /// <summary>
     /// Normalized supplier name (SECO, KENNAMETAL, SANDVIK, WALTER).

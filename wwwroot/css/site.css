@@ -21,6 +21,44 @@ body {
   margin-bottom: 60px;
 }
 
+.app-header-tagline {
+  max-width: 20rem;
+  text-align: right;
+}
+
+th.col-link,
+td.col-link {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
+}
+
+td.col-link .link-clip {
+  color: #0d6efd;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+td.col-link .link-clip:hover {
+  color: #0a58ca;
+}
+
+.data-preview-table th,
+.data-preview-table td {
+  border-color: #dee2e6;
+}
+
+@media (max-width: 767.98px) {
+  .app-header-tagline {
+    text-align: left;
+    max-width: none;
+  }
+}
+
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
   color: var(--bs-secondary-color);
   text-align: end;

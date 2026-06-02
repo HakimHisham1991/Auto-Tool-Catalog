@@ -30,7 +30,8 @@ public class ExcelService : IExcelService
                     FluteCuttingEdgeLength = GetStringOrNull(row, 7),
                     OverallLength = GetStringOrNull(row, 8),
                     PeripheralCuttingEdgeCount = GetStringOrNull(row, 9),
-                    ProcurementChannel = GetString(row, 10)
+                    ProcurementChannel = GetString(row, 10),
+                    WebpageLink = GetStringOrNull(row, 11)
                 };
                 records.Add(record);
                 rowIndex++;
@@ -57,6 +58,7 @@ public class ExcelService : IExcelService
             worksheet.Cell(1, 8).Value = "Overall length (OAL / LF)";
             worksheet.Cell(1, 9).Value = "Peripheral cutting edge count";
             worksheet.Cell(1, 10).Value = "Procurement channel";
+            worksheet.Cell(1, 11).Value = "Link";
 
             for (var i = 0; i < records.Count; i++)
             {
@@ -73,6 +75,10 @@ public class ExcelService : IExcelService
                 worksheet.Cell(excelRow, 8).Value = r.OverallLength ?? "#NA";
                 worksheet.Cell(excelRow, 9).Value = r.PeripheralCuttingEdgeCount ?? "#NA";
                 worksheet.Cell(excelRow, 10).Value = r.ProcurementChannel;
+                var linkCell = worksheet.Cell(excelRow, 11);
+                linkCell.Value = r.WebpageLink ?? "";
+                if (!string.IsNullOrWhiteSpace(r.WebpageLink))
+                    linkCell.SetHyperlink(new XLHyperlink(r.WebpageLink));
             }
 
             using var ms = new MemoryStream();

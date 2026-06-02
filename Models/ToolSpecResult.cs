@@ -13,6 +13,8 @@ public class ToolSpecResult
     public string Spec5 { get; set; } = "#NA"; // Overall length / OAL / LF
     public string Spec6 { get; set; } = "#NA"; // Shank Ø / Bore Ø / DMM / DCONMS
 
+    public string? WebpageLink { get; set; }
+
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
 

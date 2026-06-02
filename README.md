@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-# Auto Tool Catalog Enricher
+# Auto Tool Catalog
 
 A web application that automatically enriches a tooling Excel database with technical specifications by scraping official supplier websites.
 
@@ -14,7 +13,7 @@ A web application that automatically enriches a tooling Excel database with tech
 
 ## Tech Stack
 
-- **Backend:** ASP.NET Core (.NET 8)
+- **Backend:** ASP.NET Core (.NET 10)
 - **Frontend:** Razor Pages, Bootstrap
 - **Excel:** ClosedXML
 - **Scraping:** HttpClient + HtmlAgilityPack
@@ -74,7 +73,7 @@ Columns 2, 3, and 10 are used to determine search context. Columns 4–9 are fil
 
 ### Prerequisites
 
-- .NET 8 SDK
+- .NET 10 SDK
 - Windows, Linux, or macOS
 
 ### Run Locally
@@ -98,7 +97,7 @@ dotnet AutoToolCatalog.dll
 ### Docker (optional)
 
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY ./publish .
 ENTRYPOINT ["dotnet", "AutoToolCatalog.dll"]
@@ -159,7 +158,3 @@ builder.Services.AddScoped<ISupplierParser, NewSupplierParser>();
 ## License
 
 MIT
-=======
-# Auto-Tool-Catalog
-Auto Tool Spec Retrieval from Supplier Website
->>>>>>> 8f82939c3af6a828f94d06e359f43c47743f92bc

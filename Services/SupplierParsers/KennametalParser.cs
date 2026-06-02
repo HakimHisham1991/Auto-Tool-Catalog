@@ -87,6 +87,7 @@ public class KennametalParser : BaseSupplierParser
 
             // Step 4: Extract specs from the rendered product page
             var result = await ExtractSpecsFromPageAsync(page, record);
+            result.WebpageLink = page.Url;
             await page.CloseAsync();
             return result;
         }
