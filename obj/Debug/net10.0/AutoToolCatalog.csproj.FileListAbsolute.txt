@@ -501,3 +501,7 @@ C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\obj\Debug\net10.0\
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\obj\Debug\net10.0\AutoToolCatalog.pdb
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\obj\Debug\net10.0\AutoToolCatalog.genruntimeconfig.cache
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\obj\Debug\net10.0\ref\AutoToolCatalog.dll
+C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\kenn_api1.json
+C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\kenn_suggest_my.json
+C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\kenn_suggest_us.json
+C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\kenn_ws.json

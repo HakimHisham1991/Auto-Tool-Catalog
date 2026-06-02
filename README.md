@@ -76,9 +76,9 @@ Expect about **1–2 minutes per SECO row** without a link (serialized through a
 ### Kennametal pipeline
 
 ```
-Link (…6767929.html) or Tool Description
+Link (…5672870.html) or Tool Description (e.g. 5720VZ16-A063Z4R)
         ↓
-Resolve numeric product ID (URL → HTTP search → Playwright site search fallback)
+Resolve numeric product ID (URL → Hybris search API → HTML search → Playwright fallback)
         ↓
 GET https://www.product-config.net/catalog3/cad?d=kennametal&id={productId}
         ↓
@@ -87,8 +87,11 @@ Pair attributes[] with attributeValues[] → KENN_{cadParameterName}
 SQLite + UI + export
 ```
 
+Hybris search (ISO catalog number → product `code`):  
+`GET https://www.kennametal.com/ws/v2/kmt/products/search?query={part}:relevance&fields=FULL`
+
 Product pages look like:  
-`https://www.kennametal.com/us/en/products/p.{slug}.{productId}.html`
+`https://www.kennametal.com/us/en/products/p.5720-series-shell-mill-metric.5672870.html`
 
 ### Sandvik pipeline
 

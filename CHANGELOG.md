@@ -2,6 +2,11 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.3.2] - 2026-06-02
+
+### Fixed
+- Kennametal part numbers (e.g. `5720VZ16-A063Z4R`) now resolve via Hybris product search API (`/ws/v2/kmt/products/search`) to numeric CAD IDs such as `5672870`.
+
 ## [2.3.1] - 2026-06-02
 
 ### Changed

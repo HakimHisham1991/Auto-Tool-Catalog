@@ -10,7 +10,10 @@ public partial class KennametalApiClient : IKennametalApiClient
 {
     private const string KennametalSite = "https://www.kennametal.com";
     private const string CadApiBase = "https://www.product-config.net/catalog3/cad?d=kennametal";
+    private const string CommerceSearchApi = $"{KennametalSite}/ws/v2/kmt/products/search";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private sealed record ResolvedProduct(string ProductId, string? ProductUrl);
 
     private readonly IHttpClientFactory _httpClientFactory;
 
@@ -24,7 +27,17 @@ public partial class KennametalApiClient : IKennametalApiClient
             var client = _httpClientFactory.CreateClient("KENNAMETAL");
 
             var productId = ExtractProductIdFromUrl(record.WebpageLink);
-            string? productUrl = null;
+            string? productUrl = record.WebpageLink;
+
+            if (string.IsNullOrWhiteSpace(productId))
+            {
+                var commerce = await SearchProductViaCommerceApiAsync(client, record.ToolDescription, ct);
+                if (commerce != null)
+                {
+                    productId = commerce.ProductId;
+                    productUrl = commerce.ProductUrl ?? productUrl;
+                }
+            }
 
             if (string.IsNullOrWhiteSpace(productId))
                 productId = await SearchProductIdAsync(client, record.ToolDescription, ct);
@@ -112,6 +125,95 @@ public partial class KennametalApiClient : IKennametalApiClient
         return await response.Content.ReadAsStringAsync(ct);
     }
 
+    private async Task<ResolvedProduct?> SearchProductViaCommerceApiAsync(
+        HttpClient client, string? query, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return null;
+
+        var trimmed = query.Trim();
+        if (!LooksLikePartNumber(trimmed))
+            return null;
+
+        var searchQuery = $"{trimmed}:relevance";
+        var url =
+            $"{CommerceSearchApi}?query={Uri.EscapeDataString(searchQuery)}&fields=FULL&pageSize=20";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("Accept", "application/json");
+        request.Headers.TryAddWithoutValidation("Referer", $"{KennametalSite}/us/en/home.html");
+
+        using var response = await client.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        return PickProductFromCommerceSearch(json, trimmed);
+    }
+
+    private static ResolvedProduct? PickProductFromCommerceSearch(string json, string designation)
+    {
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("products", out var products) ||
+            products.ValueKind != JsonValueKind.Array)
+            return null;
+
+        var normalizedDesignation = NormalizePartToken(designation);
+
+        foreach (var product in products.EnumerateArray())
+        {
+            var code = GetJsonString(product, "code");
+            if (string.IsNullOrWhiteSpace(code))
+                continue;
+
+            if (!MatchesCatalogDesignation(product, designation, normalizedDesignation))
+                continue;
+
+            var relativeUrl = GetJsonString(product, "url");
+            var absoluteUrl = string.IsNullOrWhiteSpace(relativeUrl)
+                ? null
+                : relativeUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                    ? relativeUrl
+                    : $"{KennametalSite}/us/en{relativeUrl}";
+
+            return new ResolvedProduct(code, absoluteUrl);
+        }
+
+        return null;
+    }
+
+    private static bool MatchesCatalogDesignation(
+        JsonElement product, string designation, string normalizedDesignation)
+    {
+        foreach (var field in new[] { "catalogISO", "catalogANSI" })
+        {
+            var catalog = GetJsonString(product, field);
+            if (string.IsNullOrWhiteSpace(catalog))
+                continue;
+
+            if (catalog.Equals(designation, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (NormalizePartToken(catalog) == normalizedDesignation)
+                return true;
+        }
+
+        var description = GetJsonString(product, "description");
+        return !string.IsNullOrWhiteSpace(description) &&
+               description.Contains(designation, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? GetJsonString(JsonElement obj, string name)
+    {
+        if (!obj.TryGetProperty(name, out var el))
+            return null;
+
+        return el.ValueKind == JsonValueKind.String ? el.GetString()?.Trim() : null;
+    }
+
+    private static string NormalizePartToken(string value) =>
+        PartTokenNormalizeRegex().Replace(value.ToUpperInvariant(), string.Empty);
+
     private async Task<string?> SearchProductIdAsync(HttpClient client, string? query, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -140,15 +242,16 @@ public partial class KennametalApiClient : IKennametalApiClient
 
     private static string? PickProductIdFromHtml(string html, string designation)
     {
-        var designationUpper = designation.ToUpperInvariant();
+        var normalizedDesignation = NormalizePartToken(designation);
 
         foreach (Match match in ProductPageRegex().Matches(html))
         {
             var id = match.Groups[1].Value;
             var start = Math.Max(0, match.Index - 500);
             var length = Math.Min(html.Length - start, 1000);
-            var window = html.AsSpan(start, length).ToString().ToUpperInvariant();
-            if (window.Contains(designationUpper, StringComparison.Ordinal))
+            var window = html.AsSpan(start, length).ToString();
+            if (window.Contains(designation, StringComparison.OrdinalIgnoreCase) ||
+                window.Contains(normalizedDesignation, StringComparison.OrdinalIgnoreCase))
                 return id;
         }
 
@@ -188,4 +291,7 @@ public partial class KennametalApiClient : IKennametalApiClient
 
     [GeneratedRegex(@"^[A-Z0-9][A-Z0-9.\-/]{4,}$", RegexOptions.IgnoreCase)]
     private static partial Regex PartNumberRegex();
+
+    [GeneratedRegex(@"[^A-Z0-9]")]
+    private static partial Regex PartTokenNormalizeRegex();
 }
