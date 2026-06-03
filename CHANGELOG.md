@@ -2,6 +2,11 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.12.4] - 2026-06-03
+
+### Changed
+- Documented the `BROWSERBASE_API_KEY` deployment step: added it to the README MonsterASP control-panel section (with a note that `appsettings.Development.json` is not used in Production) and to the `publish-for-ftp.ps1` output reminder.
+
 ## [2.12.3] - 2026-06-03
 
 ### Changed

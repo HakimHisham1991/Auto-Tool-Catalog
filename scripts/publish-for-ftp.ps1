@@ -25,6 +25,12 @@ try {
     Write-Host "Ready to upload:" -ForegroundColor Green
     Write-Host "  $out"
     Write-Host "Copy all files inside that folder to your MonsterASP wwwroot (FTP port 21 or WebFTP)."
+    Write-Host ""
+    Write-Host "Reminder - set these in the MonsterASP control panel (environment variables):" -ForegroundColor Yellow
+    Write-Host "  BROWSERBASE_API_KEY        = <your key>   # required for TaeguTec (Cloudflare); appsettings.Development.json is NOT used in Production"
+    Write-Host "  DISABLE_PLAYWRIGHT_INSTALL = true          # prevents Node/Chromium install on startup"
+    Write-Host "  ASPNETCORE_ENVIRONMENT     = Production"
+    Write-Host "After startup, the log should read: 'TaeguTec fetch mode: Browserbase cloud browser'." -ForegroundColor Yellow
 }
 finally {
     Pop-Location
