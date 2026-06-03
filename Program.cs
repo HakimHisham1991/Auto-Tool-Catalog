@@ -6,6 +6,7 @@ using AutoToolCatalog.Services.Kennametal;
 using AutoToolCatalog.Services.Seco;
 using AutoToolCatalog.Services.Sandvik;
 using AutoToolCatalog.Services.Walter;
+using AutoToolCatalog.Services.TaeguTec;
 using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +21,7 @@ builder.Services.AddScoped<SecoProductDataProvider>();
 builder.Services.AddScoped<KennametalProductDataProvider>();
 builder.Services.AddScoped<SandvikProductDataProvider>();
 builder.Services.AddScoped<WalterProductDataProvider>();
+builder.Services.AddScoped<TaeguTecProductDataProvider>();
 builder.Services.AddScoped<ProductDataProviderRegistry>();
 builder.Services.AddScoped<IScraperService, ScraperService>();
 builder.Services.AddSingleton<ISecoGlobalIdStore>(sp =>
@@ -34,11 +36,44 @@ builder.Services.AddSingleton<ISecoGlobalIdStore>(sp =>
     store.Initialize();
     return store;
 });
+builder.Services.AddSingleton<ITaeguTecCatalogStore>(sp =>
+{
+    var env = sp.GetRequiredService<IWebHostEnvironment>();
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    var dbPath = cfg["CatalogDb:Path"];
+    if (string.IsNullOrWhiteSpace(dbPath))
+        dbPath = Path.Combine(env.ContentRootPath, "Data", "catalog.db");
+    var excelPath = Path.Combine(env.ContentRootPath, "Data", "TAEGUTEC_CATALOG_NO.xlsx");
+    var store = new TaeguTecCatalogStore(excelPath, dbPath);
+    store.Initialize();
+    return store;
+});
 builder.Services.AddSingleton<SecoHttpSession>();
 builder.Services.AddScoped<ISecoApiClient, SecoApiClient>();
 builder.Services.AddScoped<IKennametalApiClient, KennametalApiClient>();
 builder.Services.AddScoped<ISandvikApiClient, SandvikApiClient>();
 builder.Services.AddScoped<IWalterApiClient, WalterApiClient>();
+builder.Services.AddSingleton<TaeguTecHttpSession>();
+var taeguBrowserbaseKey = builder.Configuration["TaeguTec:BrowserbaseApiKey"]
+    ?? Environment.GetEnvironmentVariable("BROWSERBASE_API_KEY");
+var taeguBrowserbaseProject = builder.Configuration["TaeguTec:BrowserbaseProjectId"]
+    ?? Environment.GetEnvironmentVariable("BROWSERBASE_PROJECT_ID");
+var taeguBrowserbaseMaxConcurrency =
+    builder.Configuration.GetValue<int?>("TaeguTec:BrowserbaseMaxConcurrency") ?? 2;
+if (!string.IsNullOrWhiteSpace(taeguBrowserbaseKey))
+{
+    builder.Services.AddSingleton<ITaeguTecItemFetcher>(sp =>
+        new TaeguTecBrowserbaseFetcher(
+            taeguBrowserbaseKey,
+            taeguBrowserbaseProject,
+            sp.GetService<ILogger<TaeguTecBrowserbaseFetcher>>(),
+            taeguBrowserbaseMaxConcurrency));
+}
+else
+{
+    builder.Services.AddSingleton<ITaeguTecItemFetcher>(sp => sp.GetRequiredService<TaeguTecHttpSession>());
+}
+builder.Services.AddScoped<ITaeguTecApiClient, TaeguTecApiClient>();
 builder.Services.AddHttpClient("SECO", c =>
 {
     c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -70,6 +105,11 @@ catalog.Initialize();
 
 var secoGlobalIds = app.Services.GetRequiredService<ISecoGlobalIdStore>();
 app.Logger.LogInformation("SECO master list loaded: {Count} global IDs", secoGlobalIds.Count);
+
+var taegutecCatalog = app.Services.GetRequiredService<ITaeguTecCatalogStore>();
+app.Logger.LogInformation("TaeguTec master list loaded: {Count} catalog numbers", taegutecCatalog.Count);
+app.Logger.LogInformation("TaeguTec fetch mode: {Mode}",
+    string.IsNullOrWhiteSpace(taeguBrowserbaseKey) ? "HTTP (Cloudflare-limited)" : "Browserbase cloud browser");
 
 // Playwright browser install at startup can crash or hang on shared hosting (MonsterASP).
 // SECO uses HttpClient only; Playwright remains for Kennametal browser fallback.

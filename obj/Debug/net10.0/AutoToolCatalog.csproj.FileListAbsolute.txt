@@ -506,3 +506,5 @@ C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\kenn_ws.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\appsettings.Production.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\Data\SECO_GLOBAL_ID.xlsx
+C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\HtmlAgilityPack.dll
+C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\bin\Debug\net10.0\Data\TAEGUTEC_CATALOG_NO.xlsx

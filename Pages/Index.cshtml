@@ -2,7 +2,7 @@
 @model AutoToolCatalog.Pages.IndexModel
 @{
     ViewData["Title"] = "Auto Tool Catalog";
-    const string AppVersion = "2.9.0";
+    const string AppVersion = "2.12.2";
     ViewData["AppVersion"] = AppVersion;
 }
 
@@ -45,7 +45,7 @@
             <div class="col-md-8 offset-md-4">Time: <span id="elapsedTime" class="text-muted">—</span></div>
         </div>
         <div class="small text-muted mt-2" id="processNote">
-            Note: SECO resolves via master list (~1,000 tools), Link, or <code>SearchProducedProducts</code> HTTP search, then <code>GetFullProduct</code> — no browser. Master-list rows are fastest (~1 s); designation-only rows typically ~2–5 s each.
+            Note: TaeguTec rows are slow. They fetch through a Browserbase cloud browser that must clear Cloudflare and load several pages, so expect ~20–40 s per item, and sessions run only ~2 at a time (Browserbase free-plan concurrency limit). A handful of TaeguTec items can take a few minutes.
         </div>
         <div class="small text-muted" id="importStatus" style="display: none;">
             Status: <span id="importStatusText">—</span>

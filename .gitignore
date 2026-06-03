@@ -1,0 +1,94 @@
+# ---------------------------------------------
+# .NET build output
+# ---------------------------------------------
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+publish/
+publish_clean/
+
+# Tools/ helper projects build output
+Tools/**/bin/
+Tools/**/obj/
+
+# ---------------------------------------------
+# Runtime-generated data (seeded from Excel masters)
+# ---------------------------------------------
+Data/catalog.db
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Keep the committed master spreadsheets (seeds), they are tracked intentionally:
+!Data/SECO_GLOBAL_ID.xlsx
+!Data/TAEGUTEC_CATALOG_NO.xlsx
+
+# ---------------------------------------------
+# Playwright / Chromium (huge, never deploy to shared hosting)
+# ---------------------------------------------
+.playwright/
+**/.playwright/
+ms-playwright/
+
+# ---------------------------------------------
+# Secrets / local configuration
+# ---------------------------------------------
+# Browserbase / SECO keys etc. belong in env vars or local config, never in git.
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+.env
+.env.*
+
+# ---------------------------------------------
+# Visual Studio / Rider / VS Code
+# ---------------------------------------------
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Keep shared VS Code launch/tasks config (tracked intentionally),
+# but ignore per-user editor state.
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ---------------------------------------------
+# NuGet
+# ---------------------------------------------
+*.nupkg
+*.snupkg
+project.lock.json
+project.assets.json
+
+# ---------------------------------------------
+# Logs, temp, OS files
+# ---------------------------------------------
+*.log
+*.tmp
+*.temp
+Thumbs.db
+Desktop.ini
+.DS_Store
+*~
+
+# ---------------------------------------------
+# Test / coverage artifacts
+# ---------------------------------------------
+[Tt]est[Rr]esult*/
+coverage/
+*.coverage

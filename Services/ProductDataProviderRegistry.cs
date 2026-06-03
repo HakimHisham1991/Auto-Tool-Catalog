@@ -3,6 +3,7 @@ using AutoToolCatalog.Services.Kennametal;
 using AutoToolCatalog.Services.Seco;
 using AutoToolCatalog.Services.Sandvik;
 using AutoToolCatalog.Services.Walter;
+using AutoToolCatalog.Services.TaeguTec;
 
 namespace AutoToolCatalog.Services;
 
@@ -14,7 +15,8 @@ public class ProductDataProviderRegistry
         SecoProductDataProvider seco,
         KennametalProductDataProvider kennametal,
         SandvikProductDataProvider sandvik,
-        WalterProductDataProvider walter)
+        WalterProductDataProvider walter,
+        TaeguTecProductDataProvider taegutec)
     {
         _providers =
         [
@@ -22,7 +24,7 @@ public class ProductDataProviderRegistry
             kennametal,
             sandvik,
             walter,
-            new StubProductDataProvider(SupplierPrefixes.TaeguTec)
+            taegutec
         ];
     }
 

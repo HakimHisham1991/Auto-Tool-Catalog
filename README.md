@@ -162,9 +162,15 @@ Product pages look like:
 
 Ordering codes in Excel (e.g. `DC165-05-08.000A1-WJ30UU`, `F2162-8`, `A3289DPL-12`) are passed as lowercase `id` values. If Walter returns `hitCount: 0`, the row fails with **Walter product not found**.
 
-### TaeguTec (not integrated)
+### TaeguTec (HTTP HTML catalog)
 
-Rows with procurement channel **TAEGUTEC** (or any value containing `TAEGU`) are recognized on import but **do not fetch live data**. The IMC e-catalog is Cloudflare-protected and unreachable from typical hosting environments, so there is no reliable server-side API. These rows complete as **Success** with dynamic spec columns set to **`#N/A`** (same as other unsupported suppliers).
+Rows with procurement channel **TAEGUTEC** (or any value containing `TAEGU`) fetch specs from the IMC e-catalog. The session warms `Index.aspx` for the ASP.NET cookie, then either uses a full **Link** (`Item.aspx?cat=…&fnum=…&mapp=…`) or resolves `fnum`/`mapp` from `search.aspx?cat={catalogNo}&stype=1&styp=E` before loading `Item.aspx`. Visible ISO13399 parameters from `content_gvwItemParameters` map to **`TAEG_*`** columns (e.g. `TAEG_DC`, `TAEG_OAL`).
+
+**Catalog number resolution** (same pattern as SECO global IDs): `Data/TAEGUTEC_CATALOG_NO.xlsx` is seeded into SQLite at startup. For designation-only rows, **Tool Description** is looked up in the master list to get **Catalog No**, then the live item page is fetched. Catalog number can also come from **Link** (`cat=` query) or a 6–8 digit token in the description.
+
+**Cloudflare + Browserbase:** the IMC site is Cloudflare-protected and returns a 403 JS challenge to plain `HttpClient` from most IPs. Set a **Browserbase** API key (`TaeguTec:BrowserbaseApiKey` in `appsettings.json`, or the `BROWSERBASE_API_KEY` env var) to fetch via a Browserbase cloud browser, which passes the challenge automatically. The browser runs in Browserbase's cloud over a CDP WebSocket, so **no Chromium/Playwright driver is needed on the server** — this works on MonsterASP. Without a key, TaeguTec falls back to plain HTTP (which fails wherever Cloudflare blocks). The active mode is logged at startup.
+
+Browserbase caps concurrent sessions per plan (free = 3). `TaeguTec:BrowserbaseMaxConcurrency` (default `2`) gates how many cloud-browser sessions run at once; `429 Too Many Requests` is retried with exponential backoff. Raise this only if your plan allows more concurrent sessions.
 
 ### Dynamic columns
 
@@ -174,7 +180,7 @@ Rows with procurement channel **TAEGUTEC** (or any value containing `TAEGU`) are
 | KENNAMETAL | `KENN_` | Live CAD API (`product-config.net/catalog3/cad`) |
 | SANDVIK | `SAND_` | Live product API (`sandvik.coromant.com/api/productsearch`) |
 | WALTER | `WALT_` | Live product API (`walter-tools.com/api/productsearch/getproduct`) |
-| TAEGUTEC | — | Not integrated — spec columns show `#N/A` |
+| TAEGUTEC | `TAEG_` | Live HTML catalog via Browserbase cloud browser (`imc-companies.com/taegutec/ttkcatalog`, Cloudflare-protected) |
 
 Legacy fixed columns (Type, Shank/Bore Ø, Tool Ø, Corner rad, Flute length, OAL, Edge count) were removed in v2.0. Extra columns in your source Excel are **ignored** on import.
 
@@ -195,7 +201,7 @@ Example layout (your file may have extra columns — they are ignored):
 |-----|------------------|--------------|---|---------------------|
 | 1 | JH142040G2R100.0Z4-HXT | Solid Endmill | … | SECO |
 
-Supplier must normalize to **SECO**, **KENNAMETAL**, **SANDVIK**, or **WALTER** for live API fetch. **TAEGUTEC** is accepted on import but returns `#N/A` for specs. If the Supplier cell contains a tool type (e.g. “Solid Endmill”), the importer uses **Procurement channel** when it contains a known vendor name.
+Supplier must normalize to **SECO**, **KENNAMETAL**, **SANDVIK**, **WALTER**, or **TAEGUTEC** for live API fetch. If the Supplier cell contains a tool type (e.g. “Solid Endmill”), the importer uses **Procurement channel** when it contains a known vendor name.
 
 ## Project layout
 
@@ -286,8 +292,9 @@ SignalR hub: `/hubs/processing` — join with `JoinSession(sessionId)`; events `
 | File | Purpose | Key |
 |------|---------|-----|
 | `SECO_GLOBAL_ID.xlsx` | SECO `Tool Description → Seco Global Number` | Global Number |
+| `TAEGUTEC_CATALOG_NO.xlsx` | TaeguTec `Tool Description → Catalog No` | Catalog No |
 
-Seeded into SQLite at startup and re-seeded automatically when the file changes. Append rows and restart to extend SECO coverage.
+Seeded into SQLite at startup and re-seeded automatically when the file changes. Append rows and restart to extend SECO or TaeguTec coverage.
 
 ## Run locally
 

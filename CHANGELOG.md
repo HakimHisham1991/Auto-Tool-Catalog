@@ -2,6 +2,42 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.12.2] - 2026-06-03
+
+### Changed
+- Replaced the SECO processing note on the main page with a TaeguTec note explaining the slower Browserbase fetch (~20–40 s per item, ~2 sessions at a time) so the longer run times are expected.
+
+## [2.12.1] - 2026-06-03
+
+### Fixed
+- **Browserbase concurrent-session 429s** — the parallel scraper (5 rows at once) opened more cloud-browser sessions than the Browserbase plan allows (free = 3). `TaeguTecBrowserbaseFetcher` now gates session creation with a semaphore (`TaeguTec:BrowserbaseMaxConcurrency`, default 2) and retries `429 Too Many Requests` with exponential backoff (honoring `Retry-After`), so TaeguTec rows queue instead of failing.
+
+## [2.12.0] - 2026-06-03
+
+### Added
+- **TaeguTec via Browserbase cloud browser** — the IMC e-catalog is Cloudflare-protected (403 JS challenge), which plain HTTP cannot pass. `TaeguTecBrowserbaseFetcher` drives a Browserbase cloud browser over raw Chrome DevTools Protocol (WebSocket) to warm the session, resolve `fnum`/`mapp`, and load `Item.aspx`. The browser runs in Browserbase's cloud, so **no Chromium/Playwright driver is needed on the server** (MonsterASP-safe).
+- `ITaeguTecItemFetcher` abstraction with two implementations: `TaeguTecHttpSession` (plain HTTP) and `TaeguTecBrowserbaseFetcher`. Selected at startup based on `TaeguTec:BrowserbaseApiKey` (or `BROWSERBASE_API_KEY` env var); falls back to HTTP when unset.
+- Shared `TaeguTecHtmlParser` used by both fetchers.
+
+### Configuration
+- `appsettings.json` → `TaeguTec:BrowserbaseApiKey` / `BrowserbaseProjectId` (or env `BROWSERBASE_API_KEY` / `BROWSERBASE_PROJECT_ID`). Startup logs the active fetch mode.
+
+## [2.11.0] - 2026-06-03
+
+### Added
+- **TaeguTec master catalog** (`Data/TAEGUTEC_CATALOG_NO.xlsx`) seeded into SQLite (`taegutec_catalog`) via `TaeguTecCatalogStore` — mirrors `SecoGlobalIdStore` but maps **Tool Description → Catalog No**. Resolves designation-only rows (e.g. `MXEG080A45-01S05`) before fetching `Item.aspx` specs.
+
+### Changed
+- `TaeguTecApiClient` resolves catalog number from Link, then master list, then description fallback.
+
+## [2.10.0] - 2026-06-03
+
+### Added
+- **TaeguTec HTTP catalog integration** — `TaeguTecHttpSession` (ASP.NET session warmup + cookie jar), `TaeguTecApiClient` (HtmlAgilityPack parse of `Item.aspx`), and `TaeguTecProductDataProvider`. Resolves catalog number from Link or Tool Description, discovers `fnum`/`mapp` via `search.aspx` when needed, and maps visible ISO13399 parameters to `TAEG_*` columns.
+
+### Changed
+- **TAEGUTEC** is API-supported again (`SupplierPrefixes.IsApiSupported`); registry uses live provider instead of stub.
+
 ## [2.9.0] - 2026-06-03
 
 ### Removed

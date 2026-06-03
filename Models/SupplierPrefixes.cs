@@ -33,5 +33,6 @@ public static class SupplierPrefixes
         supplier.Equals(Seco, StringComparison.OrdinalIgnoreCase) ||
         supplier.Equals(Kennametal, StringComparison.OrdinalIgnoreCase) ||
         supplier.Equals(Sandvik, StringComparison.OrdinalIgnoreCase) ||
-        supplier.Equals(Walter, StringComparison.OrdinalIgnoreCase);
+        supplier.Equals(Walter, StringComparison.OrdinalIgnoreCase) ||
+        supplier.Equals(TaeguTec, StringComparison.OrdinalIgnoreCase);
 }
