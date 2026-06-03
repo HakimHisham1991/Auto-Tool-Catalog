@@ -17,7 +17,8 @@ alwaysApply: true
 2. **Update TWO files**:
    - `"C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Pages\Index.cshtml"`
    - `CHANGELOG.md` (in project root)
+   - `README.md` (in project root)
 
-3. **Do this as the FINAL step** before declaring the task complete.
+4. **Do this as the FINAL step** before declaring the task complete.
 
 

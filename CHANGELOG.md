@@ -2,6 +2,11 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.12.3] - 2026-06-03
+
+### Changed
+- Updated `README.md` to reflect the current state: TaeguTec via Browserbase, version 2.12.x, features/tech-stack/architecture/project-layout entries, and the changelog history footer.
+
 ## [2.12.2] - 2026-06-03
 
 ### Changed

@@ -1,8 +1,8 @@
 # Auto Tool Catalog
 
-**Version 2.9.0** · Developed by UPECA PDC
+**Version 2.12.3** · Developed by UPECA PDC
 
-A web application that enriches tooling Excel databases with supplier product data. It imports your catalog, fetches specifications from official supplier APIs, stores raw JSON in SQLite, and exports an updated workbook with **dynamic property columns** per supplier. SECO is fully HTTP-based; Kennametal may use a Playwright browser bridge when plain HTTP is blocked.
+A web application that enriches tooling Excel databases with supplier product data. It imports your catalog, fetches specifications from official supplier APIs, stores raw JSON in SQLite, and exports an updated workbook with **dynamic property columns** per supplier. SECO, Sandvik, and Walter are fully HTTP-based; Kennametal may use a Playwright browser bridge when plain HTTP is blocked; TaeguTec fetches through a Browserbase cloud browser to clear Cloudflare.
 
 ## Features
 
@@ -13,6 +13,7 @@ A web application that enriches tooling Excel databases with supplier product da
 - **Kennametal** — product-config CAD API (`product-config.net`); `KENN_*` columns from CAD parameters
 - **Sandvik** — Coromant product search API; `SAND_*` columns from product detail properties
 - **Walter** — Walter product search API; `WALT_*` columns from product `columns` + `items[]`
+- **TaeguTec** — IMC e-catalog via a **Browserbase** cloud browser (Cloudflare-protected); `Tool Description → Catalog No` resolved from a seeded master list, `TAEG_*` columns parsed from the item page
 - Progress panel shows **Success / Failed / Current** and elapsed **Time** (`hh:mm:ss`) while processing
 - Export completed Excel as `{original_name}_updated.xlsx` (formatted table, hyperlinks on Link)
 - Stop processing mid-run; SignalR reconnect re-joins the session
@@ -27,10 +28,11 @@ A web application that enriches tooling Excel databases with supplier product da
 | Catalog storage | SQLite (`Data/catalog.db`) |
 | SECO data | `SecoHttpSession` — shared `HttpClient` + `CookieContainer` (no browser) |
 | Browser bridge (Kennametal) | Playwright/Chromium when plain HTTP is blocked |
+| TaeguTec data | Browserbase cloud browser over raw CDP WebSocket; HTML parsed with HtmlAgilityPack |
 
 ## Architecture (v2.0)
 
-The app no longer scrapes HTML with HtmlAgilityPack. Each supplier is handled by a **product data provider** that returns normalized key/value properties.
+Each supplier is handled by a **product data provider** that returns normalized key/value properties. SECO, Kennametal, Sandvik, and Walter use JSON APIs; TaeguTec is the one exception that parses HTML (with HtmlAgilityPack) from a Browserbase cloud browser.
 
 ```mermaid
 flowchart LR
@@ -41,10 +43,14 @@ flowchart LR
   Registry --> Kennametal[KennametalProductDataProvider]
   Registry --> Sandvik[SandvikProductDataProvider]
   Registry --> Walter[WalterProductDataProvider]
+  Registry --> TaeguTec[TaeguTecProductDataProvider]
   SECO --> Api[SecoApiClient]
   Api --> Session2[SecoHttpSession HttpClient]
   Session2 --> Search[SearchProducedProducts]
   Session2 --> Product[GetFullProduct POST]
+  TaeguTec --> TApi[TaeguTecApiClient]
+  TApi --> TStore[TaeguTecCatalogStore master list]
+  TApi --> TBB[TaeguTecBrowserbaseFetcher CDP]
   Api --> SQLite[(SQLite catalog)]
   Scraper --> UI[SignalR + Data Preview]
   UI --> Export[Excel export _updated]
@@ -236,14 +242,23 @@ Auto-Tool-Catalog/
 │   ├── Sandvik/
 │   │   ├── SandvikApiClient.cs
 │   │   └── SandvikProductDataProvider.cs
-│   └── Walter/
-│       ├── WalterApiClient.cs
-│       └── WalterProductDataProvider.cs
+│   ├── Walter/
+│   │   ├── WalterApiClient.cs
+│   │   └── WalterProductDataProvider.cs
+│   └── TaeguTec/
+│       ├── TaeguTecApiClient.cs
+│       ├── TaeguTecCatalogStore.cs        # Tool Description → Catalog No master list → SQLite
+│       ├── TaeguTecHttpSession.cs         # plain-HTTP fetcher (Cloudflare-limited)
+│       ├── TaeguTecBrowserbaseFetcher.cs  # Browserbase cloud browser over raw CDP WebSocket
+│       ├── TaeguTecHtmlParser.cs          # shared HtmlAgilityPack parsing
+│       └── TaeguTecProductDataProvider.cs
 ├── Models/Kennametal/KennametalCadDto.cs
 ├── Models/Sandvik/                 # Sandvik API DTOs
+├── Models/TaeguTec/TaeguTecItemDto.cs
 ├── Tools/
 │   ├── SecoApiTest/              # Manual SECO integration test
-│   └── KennametalApiTest/        # Manual Kennametal integration test
+│   ├── KennametalApiTest/        # Manual Kennametal integration test
+│   └── TaeguProbe/               # Manual TaeguTec/Browserbase probe
 ├── Pages/
 │   └── Index.cshtml              # Main UI
 └── Program.cs                    # Minimal API + Razor
@@ -449,7 +464,7 @@ docker run -p 8080:8080 -e ASPNETCORE_URLS=http://+:8080 auto-tool-catalog
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history (2.7.x = SECO HttpClient migration; 2.6.0 = TaeguTec; 2.5.x = MonsterASP FTP deploy; 2.4.0 = SECO master list; 2.3.0 = Walter; 2.2.0 = Sandvik; 2.1.0 = Kennametal; 2.0.0 = API/SQLite/dynamic columns).
+See [CHANGELOG.md](CHANGELOG.md) for version history (2.12.x = TaeguTec via Browserbase cloud browser + concurrency/429 handling; 2.11.0 = TaeguTec master catalog; 2.10.0 = TaeguTec HTTP scraper; 2.9.0 = TaeguTec removed; 2.7.x = SECO HttpClient migration; 2.5.x = MonsterASP FTP deploy; 2.4.0 = SECO master list; 2.3.0 = Walter; 2.2.0 = Sandvik; 2.1.0 = Kennametal; 2.0.0 = API/SQLite/dynamic columns).
 
 ## License
 
