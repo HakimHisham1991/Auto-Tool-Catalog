@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TaeguTest")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b8c0ceec5427c9b4e7857637073c9c0d53de75a6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6d8866b6d621f91269147cb042b8b504d2b5b987")]
 [assembly: System.Reflection.AssemblyProductAttribute("TaeguTest")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TaeguTest")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

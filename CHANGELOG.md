@@ -2,6 +2,22 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.7.1] - 2026-06-03
+
+### Fixed
+- SECO designation-only rows now resolve via `Products/SearchProducedProducts` (GET with `searchTerms`) instead of broken 404 search endpoints and non-rendered `/search?q=` HTML. Exact designation match is preferred when multiple variants are returned.
+
+## [2.7.0] - 2026-06-03
+
+### Changed
+- SECO pipeline no longer uses Playwright/Chromium — product data is fetched via pure `HttpClient` + `CookieContainer` against `GetFullProduct` (POST with `itemNumber`, `market`, `language` after article-page warmup). Eliminates Node.exe/Chromium on the server for SECO rows and avoids MonsterASP suspension.
+- Removed `SecoPlaywrightPool` and `SecoBrowserApiFetcher`; `SecoHttpSession` is now a DI singleton with session cookie warmup and API headers matching browser DevTools.
+- `PlaywrightBootstrap` and startup respect `DISABLE_PLAYWRIGHT_INSTALL=true`; `scripts/publish-for-ftp.ps1` strips `.playwright` from publish output.
+- Configurable `Seco:Market` (default `MY`) and `Seco:Language` (default `en-GB`) in `appsettings.json`.
+
+### Note
+- Playwright remains in the project for Kennametal and TaeguTec browser fallbacks only; set `DISABLE_PLAYWRIGHT_INSTALL=true` on MonsterASP if those suppliers are not used in production.
+
 ## [2.6.0] - 2026-06-02
 
 ### Added

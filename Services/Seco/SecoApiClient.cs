@@ -8,10 +8,14 @@ public class SecoApiClient : ISecoApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
+    private readonly SecoHttpSession _session;
     private readonly ISecoGlobalIdStore? _globalIdStore;
 
-    public SecoApiClient(ISecoGlobalIdStore? globalIdStore = null) =>
+    public SecoApiClient(SecoHttpSession session, ISecoGlobalIdStore? globalIdStore = null)
+    {
+        _session = session;
         _globalIdStore = globalIdStore;
+    }
 
     public async Task<ProductFetchResult> FetchProductAsync(ToolRecord record, CancellationToken ct = default)
     {
@@ -19,29 +23,20 @@ public class SecoApiClient : ISecoApiClient
         {
             var itemNumber = ResolveItemNumberLocally(record);
 
-            // Only hit the network for resolution when the local master list / link / description can't.
             if (string.IsNullOrWhiteSpace(itemNumber))
             {
-                itemNumber = await SecoHttpSession.Default.ResolveItemNumberAsync(
+                itemNumber = await _session.ResolveItemNumberAsync(
                     record.WebpageLink, record.ToolDescription, ct);
             }
 
-            string? productUrl = null;
-            string? json = null;
+            if (string.IsNullOrWhiteSpace(itemNumber))
+                return ProductFetchResult.Failed("Could not resolve SECO item number from link, description, or search");
 
-            var browser = await SecoPlaywrightPool.FetchAsync(
-                record.WebpageLink, record.ToolDescription ?? string.Empty, itemNumber, ct);
-            if (browser != null)
-            {
-                itemNumber = browser.ItemNumber;
-                productUrl = browser.ProductUrl;
-                json = browser.Json;
-            }
+            var json = await _session.FetchGetFullProductJsonAsync(itemNumber, ct);
+            if (string.IsNullOrWhiteSpace(json))
+                return ProductFetchResult.Failed("Could not fetch SECO product data from API");
 
-            if (string.IsNullOrWhiteSpace(json) || string.IsNullOrWhiteSpace(itemNumber))
-                return ProductFetchResult.Failed("Could not resolve SECO item number or product data from link, description, or search");
-
-            productUrl ??= $"https://www.secotools.com/article/p_{itemNumber}";
+            var productUrl = $"https://www.secotools.com/article/p_{itemNumber}";
 
             var product = JsonSerializer.Deserialize<SecoProductDto>(json, JsonOptions);
             var properties = product == null ? new Dictionary<string, string>() : NormalizeAttributes(product);

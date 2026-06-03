@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\Tools\\SecoApiTest\\SecoApiTest.csproj": {}
+    "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\Tools\\SecoApiTest\\SecoApiTest.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj": {
+    "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj",
+        "projectUniqueName": "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj",
         "projectName": "AutoToolCatalog",
-        "projectPath": "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj",
-        "packagesPath": "C:\\Users\\User\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\obj\\",
+        "projectPath": "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj",
+        "packagesPath": "C:\\Users\\hakim.hisham\\.nuget\\packages\\",
+        "outputPath": "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\User\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\hakim.hisham\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -26,10 +26,12 @@
         ],
         "sources": {
           "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net10.0": {
+            "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {}
           }
@@ -44,10 +46,11 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.200"
+        "SdkAnalysisLevel": "10.0.300"
       },
       "frameworks": {
         "net10.0": {
+          "framework": "net10.0",
           "targetAlias": "net10.0",
           "dependencies": {
             "ClosedXML": {
@@ -86,7 +89,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.AspNetCore": "(,10.0.32767]",
             "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",
@@ -504,20 +507,20 @@
         }
       }
     },
-    "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\Tools\\SecoApiTest\\SecoApiTest.csproj": {
+    "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\Tools\\SecoApiTest\\SecoApiTest.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\Tools\\SecoApiTest\\SecoApiTest.csproj",
+        "projectUniqueName": "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\Tools\\SecoApiTest\\SecoApiTest.csproj",
         "projectName": "SecoApiTest",
-        "projectPath": "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\Tools\\SecoApiTest\\SecoApiTest.csproj",
-        "packagesPath": "C:\\Users\\User\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\Tools\\SecoApiTest\\obj\\",
+        "projectPath": "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\Tools\\SecoApiTest\\SecoApiTest.csproj",
+        "packagesPath": "C:\\Users\\hakim.hisham\\.nuget\\packages\\",
+        "outputPath": "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\Tools\\SecoApiTest\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\User\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\hakim.hisham\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -526,14 +529,16 @@
         ],
         "sources": {
           "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net10.0": {
+            "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {
-              "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj": {
-                "projectPath": "C:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj"
+              "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj": {
+                "projectPath": "c:\\Users\\Public\\Documents\\Auto-Tool-Catalog\\Auto-Tool-Catalog\\AutoToolCatalog.csproj"
               }
             }
           }
@@ -548,10 +553,11 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.200"
+        "SdkAnalysisLevel": "10.0.300"
       },
       "frameworks": {
         "net10.0": {
+          "framework": "net10.0",
           "targetAlias": "net10.0",
           "imports": [
             "net461",
@@ -569,7 +575,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.203/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",

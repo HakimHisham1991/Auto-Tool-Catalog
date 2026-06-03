@@ -36,6 +36,7 @@ builder.Services.AddSingleton<ISecoGlobalIdStore>(sp =>
     store.Initialize();
     return store;
 });
+builder.Services.AddSingleton<SecoHttpSession>();
 builder.Services.AddScoped<ISecoApiClient, SecoApiClient>();
 builder.Services.AddScoped<IKennametalApiClient, KennametalApiClient>();
 builder.Services.AddScoped<ISandvikApiClient, SandvikApiClient>();
@@ -82,8 +83,10 @@ var secoGlobalIds = app.Services.GetRequiredService<ISecoGlobalIdStore>();
 app.Logger.LogInformation("SECO master list loaded: {Count} global IDs", secoGlobalIds.Count);
 
 // Playwright browser install at startup can crash or hang on shared hosting (MonsterASP).
-if (app.Environment.IsDevelopment() ||
-    app.Configuration.GetValue("Playwright:InstallOnStartup", false))
+// SECO uses HttpClient only; Playwright remains for Kennametal / TaeguTec fallbacks.
+if (Environment.GetEnvironmentVariable("DISABLE_PLAYWRIGHT_INSTALL") != "true" &&
+    (app.Environment.IsDevelopment() ||
+     app.Configuration.GetValue("Playwright:InstallOnStartup", false)))
 {
     PlaywrightBootstrap.EnsureBrowsersInstalled(app.Logger);
 }

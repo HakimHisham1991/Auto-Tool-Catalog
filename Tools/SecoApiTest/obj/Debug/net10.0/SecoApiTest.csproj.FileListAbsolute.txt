@@ -8,7 +8,6 @@ C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\bin\Debug\net10.0\kenn_ws.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\bin\Debug\net10.0\AutoToolCatalog.staticwebassets.runtime.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\bin\Debug\net10.0\AutoToolCatalog.staticwebassets.endpoints.json
-C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\bin\Debug\net10.0\AutoToolCatalog.exe
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\bin\Debug\net10.0\.playwright\node\win32_x64\node.exe
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\bin\Debug\net10.0\.playwright\node\LICENSE
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\bin\Debug\net10.0\.playwright\package\api.json
@@ -431,3 +430,5 @@ C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\obj\Debug\net10.0\SecoApiTest.pdb
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\obj\Debug\net10.0\SecoApiTest.genruntimeconfig.cache
 C:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\obj\Debug\net10.0\ref\SecoApiTest.dll
+c:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\bin\Debug\net10.0\appsettings.Production.json
+c:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\bin\Debug\net10.0\Data\SECO_GLOBAL_ID.xlsx

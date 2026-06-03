@@ -14,6 +14,13 @@ Push-Location $projectRoot
 try {
     # UseAppHost=false: publish DLL only (MonsterASP OutOfProcess + EXE disables the app pool).
     dotnet publish AutoToolCatalog.csproj --configuration Release --output $out -p:UseAppHost=false
+
+    $playwrightDir = Join-Path $out ".playwright"
+    if (Test-Path $playwrightDir) {
+        Remove-Item -Recurse -Force $playwrightDir
+        Write-Host "Removed .playwright binaries (not needed for SECO HttpClient mode)" -ForegroundColor Green
+    }
+
     Write-Host ""
     Write-Host "Ready to upload:" -ForegroundColor Green
     Write-Host "  $out"
