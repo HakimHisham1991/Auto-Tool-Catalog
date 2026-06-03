@@ -44,6 +44,7 @@ ms-playwright/
 # Browserbase / SECO keys etc. belong in env vars or local config, never in git.
 appsettings.Development.json
 appsettings.Local.json
+appsettings.*.local.json
 appsettings.*.Local.json
 secrets.json
 .env

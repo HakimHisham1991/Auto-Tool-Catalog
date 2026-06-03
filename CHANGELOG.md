@@ -2,6 +2,14 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.12.5] - 2026-06-03
+
+### Fixed
+- **TaeguTec failing on MonsterASP / Production** — `appsettings.Development.json` (Browserbase key) is not loaded in Production. The publish script now writes `appsettings.Production.local.json` into publish output when a local key exists; `Program.cs` loads `appsettings.{Environment}.local.json`. Clearer fetch error messages when the key or master catalog is missing.
+
+### Changed
+- Startup warnings when TaeguTec catalog is empty or Browserbase key is not configured.
+
 ## [2.12.4] - 2026-06-03
 
 ### Changed

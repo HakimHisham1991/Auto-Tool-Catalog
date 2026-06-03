@@ -25,6 +25,9 @@ public sealed class TaeguTecBrowserbaseFetcher : ITaeguTecItemFetcher
     private readonly ILogger<TaeguTecBrowserbaseFetcher>? _logger;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(60) };
     private readonly SemaphoreSlim _sessionGate;
+    private string? _lastError;
+
+    public string? LastError => _lastError;
 
     public TaeguTecBrowserbaseFetcher(
         string apiKey,
@@ -40,6 +43,7 @@ public sealed class TaeguTecBrowserbaseFetcher : ITaeguTecItemFetcher
 
     public async Task<TaeguTecItemDto?> FetchItemAsync(string catalogNo, string? knownItemUrl, CancellationToken ct = default)
     {
+        _lastError = null;
         await _sessionGate.WaitAsync(ct);
         BrowserbaseSession? session = null;
         try
@@ -68,7 +72,8 @@ public sealed class TaeguTecBrowserbaseFetcher : ITaeguTecItemFetcher
 
                 if (!TaeguTecHtmlParser.TryExtractFnum(searchHtml, out fnum, out mapp))
                 {
-                    _logger?.LogWarning("TaeguTec Browserbase: no fnum found in search results for cat={Catalog}", catalogNo);
+                    _lastError = "No fnum/mapp found in search results for cat=" + catalogNo;
+                    _logger?.LogWarning("TaeguTec Browserbase: {Error}", _lastError);
                     return null;
                 }
             }
@@ -80,7 +85,10 @@ public sealed class TaeguTecBrowserbaseFetcher : ITaeguTecItemFetcher
 
             if (!TaeguTecHtmlParser.LooksLikeItemPage(itemHtml))
             {
-                _logger?.LogWarning("TaeguTec Browserbase: item page did not load for cat={Catalog}", catalogNo);
+                _lastError = TaeguTecHtmlParser.LooksLikeCloudflareChallenge(itemHtml)
+                    ? "Item page still behind Cloudflare after Browserbase navigation"
+                    : "Item page did not load (missing parameters table) for cat=" + catalogNo;
+                _logger?.LogWarning("TaeguTec Browserbase: {Error}", _lastError);
                 return null;
             }
 
@@ -88,6 +96,7 @@ public sealed class TaeguTecBrowserbaseFetcher : ITaeguTecItemFetcher
         }
         catch (Exception ex)
         {
+            _lastError = ex.Message;
             _logger?.LogError(ex, "TaeguTec Browserbase fetch failed for cat={Catalog}", catalogNo);
             return null;
         }
@@ -127,7 +136,8 @@ public sealed class TaeguTecBrowserbaseFetcher : ITaeguTecItemFetcher
                 var connectUrl = root.TryGetProperty("connectUrl", out var cuEl) ? cuEl.GetString() : null;
                 if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(connectUrl))
                 {
-                    _logger?.LogError("Browserbase session response missing id/connectUrl: {Body}", body);
+                    _lastError = "Browserbase session response missing id/connectUrl";
+                    _logger?.LogError("{Error}: {Body}", _lastError, body);
                     return null;
                 }
                 return new BrowserbaseSession(id, connectUrl);
@@ -144,12 +154,16 @@ public sealed class TaeguTecBrowserbaseFetcher : ITaeguTecItemFetcher
                 continue;
             }
 
-            _logger?.LogError("Browserbase session create failed: {Status} {Body}", (int)response.StatusCode, body);
+            _lastError = $"Browserbase session create failed ({(int)response.StatusCode}): {Truncate(body, 200)}";
+            _logger?.LogError("{Error}", _lastError);
             return null;
         }
 
         return null;
     }
+
+    private static string Truncate(string value, int max) =>
+        value.Length <= max ? value : value[..max] + "...";
 
     private static TimeSpan GetRetryDelay(HttpResponseMessage response, int attempt)
     {

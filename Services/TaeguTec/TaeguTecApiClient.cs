@@ -6,12 +6,17 @@ namespace AutoToolCatalog.Services.TaeguTec;
 public class TaeguTecApiClient : ITaeguTecApiClient
 {
     private readonly ITaeguTecItemFetcher _fetcher;
-    private readonly ITaeguTecCatalogStore? _catalogStore;
+    private readonly ITaeguTecCatalogStore _catalogStore;
+    private readonly TaeguTecRuntimeInfo _runtime;
 
-    public TaeguTecApiClient(ITaeguTecItemFetcher fetcher, ITaeguTecCatalogStore? catalogStore = null)
+    public TaeguTecApiClient(
+        ITaeguTecItemFetcher fetcher,
+        ITaeguTecCatalogStore catalogStore,
+        TaeguTecRuntimeInfo runtime)
     {
         _fetcher = fetcher;
         _catalogStore = catalogStore;
+        _runtime = runtime;
     }
 
     public async Task<ProductFetchResult> FetchProductAsync(ToolRecord record, CancellationToken ct = default)
@@ -20,13 +25,33 @@ public class TaeguTecApiClient : ITaeguTecApiClient
         {
             var catalogNo = ResolveCatalogNoLocally(record);
             if (string.IsNullOrWhiteSpace(catalogNo))
+            {
+                if (_catalogStore.Count == 0)
+                {
+                    return ProductFetchResult.Failed(
+                        "TaeguTec: master catalog is empty — ensure Data/TAEGUTEC_CATALOG_NO.xlsx is deployed " +
+                        $"({_runtime.CatalogExcelPath ?? "path unknown"})");
+                }
+
                 return ProductFetchResult.Failed(
                     "TaeguTec: cannot determine catalog number from Link, master list, or Tool Description");
+            }
 
             var dto = await _fetcher.FetchItemAsync(catalogNo, record.WebpageLink, ct);
             if (dto == null)
+            {
+                var detail = _fetcher.LastError;
+                if (string.IsNullOrWhiteSpace(detail) && !_runtime.UsesBrowserbase)
+                {
+                    detail = "Plain HTTP fetch failed (IMC is Cloudflare-protected). " +
+                               "Set BROWSERBASE_API_KEY (env var) or TaeguTec:BrowserbaseApiKey in appsettings.Production.local.json.";
+                }
+
                 return ProductFetchResult.Failed(
-                    $"TaeguTec: no data returned for cat={catalogNo} (catalog site may be unreachable or session expired)");
+                    string.IsNullOrWhiteSpace(detail)
+                        ? $"TaeguTec: no data returned for cat={catalogNo}"
+                        : $"TaeguTec: {detail} (cat={catalogNo})");
+            }
 
             if (dto.Parameters.Count == 0)
                 return ProductFetchResult.Failed($"TaeguTec: empty parameters for cat={catalogNo}");
@@ -76,8 +101,7 @@ public class TaeguTecApiClient : ITaeguTecApiClient
         if (!string.IsNullOrWhiteSpace(fromLink))
             return fromLink;
 
-        if (_catalogStore != null &&
-            _catalogStore.TryResolve(record.ToolDescription, out var fromMasterList) &&
+        if (_catalogStore.TryResolve(record.ToolDescription, out var fromMasterList) &&
             !string.IsNullOrWhiteSpace(fromMasterList))
             return fromMasterList;
 

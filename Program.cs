@@ -11,6 +11,12 @@ using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var localSettingsPath = Path.Combine(
+    builder.Environment.ContentRootPath,
+    $"appsettings.{builder.Environment.EnvironmentName}.local.json");
+if (File.Exists(localSettingsPath))
+    builder.Configuration.AddJsonFile(localSettingsPath, optional: true, reloadOnChange: true);
+
 builder.Services.AddRazorPages();
 builder.Services.AddSignalR();
 
@@ -60,6 +66,12 @@ var taeguBrowserbaseProject = builder.Configuration["TaeguTec:BrowserbaseProject
     ?? Environment.GetEnvironmentVariable("BROWSERBASE_PROJECT_ID");
 var taeguBrowserbaseMaxConcurrency =
     builder.Configuration.GetValue<int?>("TaeguTec:BrowserbaseMaxConcurrency") ?? 2;
+var taeguCatalogExcelPath = Path.Combine(builder.Environment.ContentRootPath, "Data", "TAEGUTEC_CATALOG_NO.xlsx");
+builder.Services.AddSingleton(_ => new TaeguTecRuntimeInfo
+{
+    UsesBrowserbase = !string.IsNullOrWhiteSpace(taeguBrowserbaseKey),
+    CatalogExcelPath = taeguCatalogExcelPath
+});
 if (!string.IsNullOrWhiteSpace(taeguBrowserbaseKey))
 {
     builder.Services.AddSingleton<ITaeguTecItemFetcher>(sp =>
@@ -107,9 +119,14 @@ var secoGlobalIds = app.Services.GetRequiredService<ISecoGlobalIdStore>();
 app.Logger.LogInformation("SECO master list loaded: {Count} global IDs", secoGlobalIds.Count);
 
 var taegutecCatalog = app.Services.GetRequiredService<ITaeguTecCatalogStore>();
+var taeguRuntime = app.Services.GetRequiredService<TaeguTecRuntimeInfo>();
 app.Logger.LogInformation("TaeguTec master list loaded: {Count} catalog numbers", taegutecCatalog.Count);
 app.Logger.LogInformation("TaeguTec fetch mode: {Mode}",
-    string.IsNullOrWhiteSpace(taeguBrowserbaseKey) ? "HTTP (Cloudflare-limited)" : "Browserbase cloud browser");
+    taeguRuntime.UsesBrowserbase ? "Browserbase cloud browser" : "HTTP (Cloudflare-limited)");
+if (taegutecCatalog.Count == 0)
+    app.Logger.LogWarning("TaeguTec master catalog is empty — check Data/TAEGUTEC_CATALOG_NO.xlsx at {Path}", taeguRuntime.CatalogExcelPath);
+if (!taeguRuntime.UsesBrowserbase)
+    app.Logger.LogWarning("TaeguTec Browserbase API key not configured — TaeguTec rows will fail behind Cloudflare. Set BROWSERBASE_API_KEY or appsettings.Production.local.json.");
 
 // Playwright browser install at startup can crash or hang on shared hosting (MonsterASP).
 // SECO uses HttpClient only; Playwright remains for Kennametal browser fallback.

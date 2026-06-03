@@ -1,41 +1,61 @@
 using AutoToolCatalog.Models;
 using AutoToolCatalog.Services.TaeguTec;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-var apiKey = Environment.GetEnvironmentVariable("BROWSERBASE_API_KEY")
-    ?? (args.Length > 0 ? args[0] : null);
-var projectId = Environment.GetEnvironmentVariable("BROWSERBASE_PROJECT_ID")
-    ?? (args.Length > 1 ? args[1] : null);
+var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+var dataDir = Path.Combine(projectRoot, "Data");
 
-if (string.IsNullOrWhiteSpace(apiKey))
-{
-    Console.WriteLine("Usage: set BROWSERBASE_API_KEY (and optionally BROWSERBASE_PROJECT_ID) or pass as args.");
-    return;
-}
+var config = new ConfigurationBuilder()
+    .SetBasePath(projectRoot)
+    .AddJsonFile("appsettings.json", optional: true)
+    .AddJsonFile("appsettings.Development.json", optional: true)
+    .AddEnvironmentVariables()
+    .Build();
 
-var dataDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Data"));
-var store = new TaeguTecCatalogStore(
-    Path.Combine(dataDir, "TAEGUTEC_CATALOG_NO.xlsx"),
-    Path.Combine(dataDir, "catalog.db"));
+var apiKey = config["TaeguTec:BrowserbaseApiKey"] ?? Environment.GetEnvironmentVariable("BROWSERBASE_API_KEY");
+var projectId = config["TaeguTec:BrowserbaseProjectId"] ?? Environment.GetEnvironmentVariable("BROWSERBASE_PROJECT_ID");
+var maxConcurrency = config.GetValue<int?>("TaeguTec:BrowserbaseMaxConcurrency") ?? 2;
+
+Console.WriteLine($"Project root: {projectRoot}");
+Console.WriteLine($"Data dir: {dataDir}");
+Console.WriteLine($"Browserbase key set: {!string.IsNullOrWhiteSpace(apiKey)} (len={apiKey?.Length ?? 0})");
+Console.WriteLine($"Max concurrency: {maxConcurrency}");
+
+var excelPath = Path.Combine(dataDir, "TAEGUTEC_CATALOG_NO.xlsx");
+Console.WriteLine($"Excel exists: {File.Exists(excelPath)}");
+
+var store = new TaeguTecCatalogStore(excelPath, Path.Combine(dataDir, "catalog.db"));
 store.Initialize();
 Console.WriteLine($"Catalog entries: {store.Count}");
 
 using var loggerFactory = LoggerFactory.Create(b => b.AddSimpleConsole(o => o.SingleLine = true).SetMinimumLevel(LogLevel.Debug));
-var logger = loggerFactory.CreateLogger<TaeguTecBrowserbaseFetcher>();
-var fetcher = new TaeguTecBrowserbaseFetcher(apiKey, projectId, logger);
-var client = new TaeguTecApiClient(fetcher, store);
+ITaeguTecItemFetcher fetcher;
+if (!string.IsNullOrWhiteSpace(apiKey))
+{
+    Console.WriteLine("Mode: Browserbase");
+    fetcher = new TaeguTecBrowserbaseFetcher(apiKey, projectId, loggerFactory.CreateLogger<TaeguTecBrowserbaseFetcher>(), maxConcurrency);
+}
+else
+{
+    Console.WriteLine("Mode: HTTP (no Browserbase key)");
+    fetcher = new TaeguTecHttpSession();
+}
 
-string[] descs = ["MXEG080A45-01S05", "HSB 2080 100 300"];
+var client = new TaeguTecApiClient(fetcher, store, new TaeguTecRuntimeInfo
+{
+    UsesBrowserbase = !string.IsNullOrWhiteSpace(apiKey),
+    CatalogExcelPath = excelPath
+});
+
+string[] descs = ["MXEG080A45-01S05", "MXCSO 4120R075-S08", "HSB 2080 100 300", "HES 6120T", "TEO S041-6"];
 foreach (var d in descs)
 {
     store.TryResolve(d, out var cat);
-    Console.WriteLine($"--- {d} (cat={cat}) ---");
     var result = await client.FetchProductAsync(new ToolRecord
     {
         ToolDescription = d,
         ProcurementChannel = "TAEGUTEC"
     });
-    Console.WriteLine($"ok={result.Success} props={result.Properties.Count} err={result.ErrorMessage}");
-    foreach (var kv in result.Properties.Take(12))
-        Console.WriteLine($"   {kv.Key} = {kv.Value}");
+    Console.WriteLine($"[{d}] cat={cat ?? "MISS"} ok={result.Success} props={result.Properties.Count} err={result.ErrorMessage}");
 }

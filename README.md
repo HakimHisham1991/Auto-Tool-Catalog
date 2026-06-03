@@ -1,6 +1,6 @@
 # Auto Tool Catalog
 
-**Version 2.12.4** · Developed by UPECA PDC
+**Version 2.12.5** · Developed by UPECA PDC
 
 A web application that enriches tooling Excel databases with supplier product data. It imports your catalog, fetches specifications from official supplier APIs, stores raw JSON in SQLite, and exports an updated workbook with **dynamic property columns** per supplier. SECO, Sandvik, and Walter are fully HTTP-based; Kennametal may use a Playwright browser bridge when plain HTTP is blocked; TaeguTec fetches through a Browserbase cloud browser to clear Cloudflare.
 
@@ -435,7 +435,11 @@ Run the workflow manually (**Actions → Run workflow**) and check **Deploy to F
 | `DISABLE_PLAYWRIGHT_INSTALL` | **`true`** — SECO uses HttpClient only; prevents Node.exe/Chromium install on startup |
 | `ASPNETCORE_ENVIRONMENT` | **`Production`** (if offered) |
 
-> **TaeguTec / Browserbase on the server:** `appsettings.Development.json` is **not** loaded in Production, so the Browserbase key must come from the `BROWSERBASE_API_KEY` environment variable in the control panel (recommended), or from a `TaeguTec:BrowserbaseApiKey` entry added to `appsettings.Production.json` before publishing. Without it, TaeguTec rows fall back to plain HTTP and fail behind Cloudflare. After startup, the log line `TaeguTec fetch mode: Browserbase cloud browser` confirms the key was picked up (vs. `HTTP (Cloudflare-limited)`).
+> **TaeguTec / Browserbase on the server:** `appsettings.Development.json` is **not** loaded in Production. Use one of:
+> - **`BROWSERBASE_API_KEY`** environment variable in the MonsterASP control panel (recommended), or
+> - **`appsettings.Production.local.json`** in `wwwroot` — the publish script writes this automatically from your local `appsettings.Development.json` key when you run `.\scripts\publish-for-ftp.ps1`.
+>
+> After startup, the log line `TaeguTec fetch mode: Browserbase cloud browser` confirms the key was picked up (vs. `HTTP (Cloudflare-limited)`).
 
 Do **not** upload `AutoToolCatalog.exe` or run the site as a standalone EXE in **OutOfProcess** mode — MonsterASP will disable the app pool with *AppPool [site72127] is not enabled on server* ([ASP.NET Core hosting models](https://help.monsterasp.net/books/websites/page/aspnet-core-hosting-model-support)).
 

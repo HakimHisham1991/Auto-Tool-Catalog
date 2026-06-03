@@ -17,6 +17,8 @@ public sealed partial class TaeguTecHttpSession : ITaeguTecItemFetcher
     private readonly SemaphoreSlim _warmupLock = new(1, 1);
     private bool _sessionWarmed;
 
+    public string? LastError { get; private set; }
+
     public TaeguTecHttpSession()
     {
         var handler = new HttpClientHandler
@@ -39,6 +41,7 @@ public sealed partial class TaeguTecHttpSession : ITaeguTecItemFetcher
         string? knownItemUrl,
         CancellationToken ct = default)
     {
+        LastError = null;
         await EnsureSessionWarmedAsync(ct);
 
         var fnum = ExtractQueryParam(knownItemUrl, "fnum");
@@ -48,7 +51,10 @@ public sealed partial class TaeguTecHttpSession : ITaeguTecItemFetcher
         {
             (fnum, mapp) = await ResolveFnumAsync(catalogNo, ct);
             if (string.IsNullOrWhiteSpace(fnum))
+            {
+                LastError ??= "Could not resolve fnum from search page (Cloudflare may be blocking plain HTTP). Set BROWSERBASE_API_KEY for TaeguTec.";
                 return null;
+            }
         }
 
         mapp ??= "ML";
@@ -61,7 +67,12 @@ public sealed partial class TaeguTecHttpSession : ITaeguTecItemFetcher
             await EnsureSessionWarmedAsync(ct);
             html = await GetHtmlAsync(itemUrl, ct);
             if (!TaeguTecHtmlParser.LooksLikeItemPage(html))
+            {
+                LastError = TaeguTecHtmlParser.LooksLikeCloudflareChallenge(html)
+                    ? "IMC catalog returned Cloudflare challenge (HTTP mode). Set BROWSERBASE_API_KEY for TaeguTec."
+                    : "Item page did not load (HTTP mode).";
                 return null;
+            }
         }
 
         return TaeguTecHtmlParser.ParseItemPage(html!, catalogNo);
@@ -127,12 +138,23 @@ public sealed partial class TaeguTecHttpSession : ITaeguTecItemFetcher
         try
         {
             using var response = await _client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
             if (!response.IsSuccessStatusCode)
+            {
+                if (TaeguTecHtmlParser.LooksLikeCloudflareChallenge(body))
+                    LastError = "IMC catalog blocked by Cloudflare (HTTP " + (int)response.StatusCode + "). Set BROWSERBASE_API_KEY for TaeguTec.";
                 return null;
-            return await response.Content.ReadAsStringAsync(ct);
+            }
+            if (TaeguTecHtmlParser.LooksLikeCloudflareChallenge(body))
+            {
+                LastError = "IMC catalog returned Cloudflare challenge. Set BROWSERBASE_API_KEY for TaeguTec.";
+                return null;
+            }
+            return body;
         }
-        catch
+        catch (Exception ex)
         {
+            LastError = ex.Message;
             return null;
         }
     }

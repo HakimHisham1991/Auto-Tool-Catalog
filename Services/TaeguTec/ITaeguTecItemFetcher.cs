@@ -7,5 +7,6 @@ namespace AutoToolCatalog.Services.TaeguTec;
 /// </summary>
 public interface ITaeguTecItemFetcher
 {
+    string? LastError { get; }
     Task<TaeguTecItemDto?> FetchItemAsync(string catalogNo, string? knownItemUrl, CancellationToken ct = default);
 }
