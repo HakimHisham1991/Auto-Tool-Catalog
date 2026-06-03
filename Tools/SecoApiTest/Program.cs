@@ -31,11 +31,10 @@ string[] items =
 foreach (var desc in items)
 {
     store.TryResolve(desc, out var gid);
-    var resolved = await session.ResolveItemNumberAsync(null, desc, default);
     var result = await client.FetchProductAsync(new ToolRecord
     {
         ToolDescription = desc,
         ProcurementChannel = "SECO"
     });
-    Console.WriteLine($"[{desc}] master={gid} resolved={resolved} ok={result.Success} item={result.ItemNumber} err={result.ErrorMessage}");
+    Console.WriteLine($"[{desc}] master={gid} ok={result.Success} item={result.ItemNumber} err={result.ErrorMessage}");
 }

@@ -30,11 +30,13 @@ public class SecoApiClient : ISecoApiClient
             }
 
             if (string.IsNullOrWhiteSpace(itemNumber))
-                return ProductFetchResult.Failed("Could not resolve SECO item number from link, description, or search");
+                return ProductFetchResult.Failed(
+                    "Could not resolve SECO item number from link, master list, or SearchProducedProducts");
 
             var json = await _session.FetchGetFullProductJsonAsync(itemNumber, ct);
             if (string.IsNullOrWhiteSpace(json))
-                return ProductFetchResult.Failed("Could not fetch SECO product data from API");
+                return ProductFetchResult.Failed(
+                    $"Could not fetch SECO product data from GetFullProduct for item {itemNumber}");
 
             var productUrl = $"https://www.secotools.com/article/p_{itemNumber}";
 

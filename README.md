@@ -1,15 +1,15 @@
 # Auto Tool Catalog
 
-**Version 2.3.x** · Developed by UPECA PDC
+**Version 2.7.2** · Developed by UPECA PDC
 
-A web application that enriches tooling Excel databases with supplier product data. It imports your catalog, fetches specifications from official supplier APIs (with a browser bridge where HTTP is blocked), stores raw JSON in SQLite, and exports an updated workbook with **dynamic property columns** per supplier.
+A web application that enriches tooling Excel databases with supplier product data. It imports your catalog, fetches specifications from official supplier APIs, stores raw JSON in SQLite, and exports an updated workbook with **dynamic property columns** per supplier. SECO is fully HTTP-based; Kennametal and TaeguTec may use a Playwright browser bridge when plain HTTP is blocked.
 
 ## Features
 
 - Import Excel (`.xlsx`) with thousands of tooling rows
 - Live **Data Preview** table with fixed core columns plus dynamically discovered spec columns (`SECO_DC`, `SECO_APMX`, …)
 - **Process / Fetch Specs** — concurrent supplier lookups with real-time progress (SignalR)
-- **SECO** — full API pipeline; designation-only rows use Playwright site search when no Link column is present
+- **SECO** — pure HTTP pipeline (`HttpClient` + cookies); designation search via `SearchProducedProducts`, product specs via `GetFullProduct` POST — **no Chromium/Node on the server**
 - **Kennametal** — product-config CAD API (`product-config.net`); `KENN_*` columns from CAD parameters
 - **Sandvik** — Coromant product search API; `SAND_*` columns from product detail properties
 - **Walter** — Walter product search API; `WALT_*` columns from product `columns` + `items[]`
@@ -25,7 +25,8 @@ A web application that enriches tooling Excel databases with supplier product da
 | UI | Bootstrap 5, SignalR |
 | Excel | ClosedXML |
 | Catalog storage | SQLite (`Data/catalog.db`) |
-| SECO data | HTTP client + **Playwright** (Chromium) when APIs return 405 or product must be resolved by search |
+| SECO data | `SecoHttpSession` — shared `HttpClient` + `CookieContainer` (no browser) |
+| Browser bridge (other suppliers) | Playwright/Chromium for Kennametal and TaeguTec when plain HTTP is blocked |
 
 ## Architecture (v2.0)
 
@@ -41,8 +42,9 @@ flowchart LR
   Registry --> Sandvik[SandvikProductDataProvider]
   Registry --> Walter[WalterProductDataProvider]
   SECO --> Api[SecoApiClient]
-  Api --> Http[HttpClient]
-  Api --> Browser[SecoBrowserApiFetcher Playwright]
+  Api --> Session2[SecoHttpSession HttpClient]
+  Session2 --> Search[SearchProducedProducts]
+  Session2 --> Product[GetFullProduct POST]
   Api --> SQLite[(SQLite catalog)]
   Scraper --> UI[SignalR + Data Preview]
   UI --> Export[Excel export _updated]
@@ -50,12 +52,16 @@ flowchart LR
 
 ### SECO pipeline
 
+SECO is **100% HTTP** — no Playwright, no Chromium, no Node.exe. This avoids MonsterASP suspensions when processing SECO rows.
+
 ```
 Procurement channel / Link / Tool Description
         ↓
-Resolve item number (link → master list → 8-digit ID → search APIs → browser site search)
+Resolve item number (link → master list → SearchProducedProducts → 8-digit ID in text)
         ↓
-GetFullProduct JSON (HTTP, or capture from product page in Chromium)
+Warm up session cookies (GET product article page — ARRAffinity, TrackSessionId, …)
+        ↓
+POST GetFullProduct (itemNumber + market + language) → JSON with Attributes[]
         ↓
 Save raw JSON → SQLite (raw_products)
         ↓
@@ -66,16 +72,41 @@ Save attributes → SQLite (product_attributes)
 Merge into session → UI + export
 ```
 
-**Master list** (`Data/SECO_GLOBAL_ID.xlsx`, ~1,000 tools) is seeded once into a SQLite table (`seco_global_ids`) and loaded into an in-memory dictionary at startup (`SecoGlobalIdStore`). A `Tool Description → Seco Global Number` hit resolves the item number with no network call, so even rows without a Link skip the slow site search. The Excel is re-seeded only when it changes (a length+mtime signature is stored in `app_meta`).
+**Master list** (`Data/SECO_GLOBAL_ID.xlsx`, ~1,000 tools) is seeded once into a SQLite table (`seco_global_ids`) and loaded into an in-memory dictionary at startup (`SecoGlobalIdStore`). A `Tool Description → Seco Global Number` hit resolves the item number with no network call. The Excel is re-seeded only when it changes (a length+mtime signature is stored in `app_meta`).
 
-**Browser bridge** is still used because direct `GET` to `GetFullProduct` returns **405** outside the site. The app keeps **one shared Chromium** instance and fetches JSON via in-page `fetch` (fast when an item number or Link is known).
+**Designation search** (when Link and master list both miss) uses SECO’s catalog API:
 
-| SECO row type | Typical speed (shared browser) |
-|---------------|--------------------------------|
-| Link, 8-digit item, or master-list match | ~2–7 s per row after warmup |
-| Designation that misses Link **and** master list | ~30–90 s per row (site search + product load) |
+```
+GET https://www.secotools.com/core/api/Products/SearchProducedProducts?searchTerms={designation}
+```
 
-To add coverage, append rows to `Data/SECO_GLOBAL_ID.xlsx` (columns: `Seco Global Number`, `Tool Description`); the table re-seeds on next startup. Rows that miss everything fall back to a single serialized browser gate; other suppliers stay on HTTP APIs.
+Returns `[{ "ItemNumber": "02968233", "Designation": "JH142040G2R100.0Z4-HXT", … }]`. When multiple variants exist (e.g. `NR…`, `R…` prefixes), the app picks an **exact designation match**.
+
+**Product fetch** uses a session-warmed POST:
+
+| Step | Request |
+|------|---------|
+| 1. Warmup | `GET https://www.secotools.com/article/p_{itemNumber}` |
+| 2. Fetch | `POST https://www.secotools.com/core/api/Products/GetFullProduct` |
+
+POST body (`application/x-www-form-urlencoded`):
+
+```
+itemNumber=02968233
+market=MY
+language=en-GB
+```
+
+Required headers include `X-Requested-With: XMLHttpRequest`, empty `X-Seco-api`, `Referer` (article page), and `Origin: https://www.secotools.com`. Market and language are configurable in `appsettings.json` under `Seco:Market` and `Seco:Language` (defaults: `MY`, `en-GB`).
+
+Example product page: `https://www.secotools.com/article/p_02968233`
+
+| SECO row type | Typical speed |
+|---------------|---------------|
+| Link or master-list match | ~0.3–3 s per row |
+| Designation-only (SearchProducedProducts + GetFullProduct) | ~1–5 s per row |
+
+To add coverage, append rows to `Data/SECO_GLOBAL_ID.xlsx` (columns: `Seco Global Number`, `Tool Description`); the table re-seeds on next startup. Rows that miss everything fail with a clear “could not resolve item number” error.
 
 ### Kennametal pipeline
 
@@ -154,7 +185,7 @@ Example product page:
 
 | Supplier | Column prefix | Status |
 |----------|----------------|--------|
-| SECO | `SECO_` | Live API + browser fallback |
+| SECO | `SECO_` | Live HTTP API (`SearchProducedProducts` + `GetFullProduct`) |
 | KENNAMETAL | `KENN_` | Live CAD API (`product-config.net/catalog3/cad`) |
 | SANDVIK | `SAND_` | Live product API (`sandvik.coromant.com/api/productsearch`) |
 | WALTER | `WALT_` | Live product API (`walter-tools.com/api/productsearch/getproduct`) |
@@ -171,7 +202,7 @@ Only these columns are read (headers are matched case-insensitively):
 | No. | — | No |
 | Tool Description | — | **Yes** (rows without it are skipped) |
 | Supplier | **Procurement channel** (if Supplier is not a known vendor name) | Recommended |
-| Link | Webpage Link, URL, Product URL, Product Link | No (recommended for SECO speed/reliability) |
+| Link | Webpage Link, URL, Product URL, Product Link | No (recommended for SECO; designation-only also works via `SearchProducedProducts`) |
 
 Example layout (your file may have extra columns — they are ignored):
 
@@ -179,7 +210,7 @@ Example layout (your file may have extra columns — they are ignored):
 |-----|------------------|--------------|---|---------------------|
 | 1 | JH142040G2R100.0Z4-HXT | Solid Endmill | … | SECO |
 
-Supplier must normalize to **SECO**, **KENNAMETAL**, **SANDVIK**, or **WALTER** (exact match after normalization). If the Supplier cell contains a tool type (e.g. “Solid Endmill”), the importer uses **Procurement channel** when it contains a known vendor name.
+Supplier must normalize to **SECO**, **KENNAMETAL**, **SANDVIK**, **WALTER**, or **TAEGUTEC** (exact match after normalization). If the Supplier cell contains a tool type (e.g. “Solid Endmill”), the importer uses **Procurement channel** when it contains a known vendor name.
 
 ## Project layout
 
@@ -202,13 +233,11 @@ Auto-Tool-Catalog/
 │   ├── ScraperService.cs         # Orchestration, concurrency (5)
 │   ├── ProductDataProviderRegistry.cs
 │   ├── StubProductDataProvider.cs  # Fallback for unknown suppliers
-│   ├── PlaywrightBootstrap.cs    # Chromium install on startup
+│   ├── PlaywrightBootstrap.cs    # Chromium install (Kennametal / TaeguTec only; skipped when DISABLE_PLAYWRIGHT_INSTALL=true)
 │   ├── Seco/
 │   │   ├── SecoApiClient.cs
-│   │   ├── SecoHttpSession.cs          # shared HTTP + cookie warmup
-│   │   ├── SecoPlaywrightPool.cs       # shared Chromium + in-page fetch
+│   │   ├── SecoHttpSession.cs          # shared HttpClient + CookieContainer + SECO API calls
 │   │   ├── SecoGlobalIdStore.cs        # master list → SQLite + in-memory lookup
-│   │   ├── SecoBrowserApiFetcher.cs
 │   │   └── SecoProductDataProvider.cs
 │   ├── Kennametal/
 │   │   ├── KennametalApiClient.cs
@@ -235,6 +264,18 @@ Auto-Tool-Catalog/
 dotnet run --project Tools/SecoApiTest/SecoApiTest.csproj
 ```
 
+Tests designation resolution (`SearchProducedProducts`) and `GetFullProduct` for sample tools including `JH142040G2R100.0Z4-HXT`.
+
+### SECO API reference (v2.7+)
+
+| Purpose | Method | URL | Body / params |
+|---------|--------|-----|----------------|
+| Resolve designation → item number | GET | `/core/api/Products/SearchProducedProducts?searchTerms={designation}` | — |
+| Warm session cookies | GET | `/article/p_{itemNumber}` | — |
+| Fetch full product JSON | POST | `/core/api/Products/GetFullProduct` | `itemNumber`, `market`, `language` |
+
+Implementation: `Services/Seco/SecoHttpSession.cs`, `Services/Seco/SecoApiClient.cs`. Migration notes: `.cursor/rules/SECO_Cookie_Harvesting_Migration.md`.
+
 ## HTTP API
 
 | Method | Path | Description |
@@ -253,7 +294,7 @@ SignalR hub: `/hubs/processing` — join with `JoinSession(sessionId)`; events `
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - Windows, Linux, or macOS
-- **First run:** Playwright installs Chromium automatically (used for SECO browser bridge). Ensure the app can download browsers or run once with network access.
+- **Playwright/Chromium** — only needed locally if you process **Kennametal** or **TaeguTec** rows (SECO does not use a browser). On MonsterASP, set `DISABLE_PLAYWRIGHT_INSTALL=true` in the control panel.
 
 ## Run locally
 
@@ -284,7 +325,10 @@ The `.csproj` already excludes `Tools/**` from web content copying; a one-time c
 | SQLite path | `appsettings.json` → `CatalogDb:Path` | `Data/catalog.db` under content root |
 | Max concurrent rows | `ScraperService` | 5 |
 | Supplier HTTP clients | `Program.cs` → `AddHttpClient` | `SECO`, `KENNAMETAL`, `SANDVIK`, `WALTER` |
-| SECO browser | Serialized (`BrowserGate` in `SecoBrowserApiFetcher`) | 1 Chromium at a time |
+| SECO market | `appsettings.json` → `Seco:Market` | `MY` |
+| SECO language | `appsettings.json` → `Seco:Language` | `en-GB` |
+| SECO HTTP session | `Program.cs` → `AddSingleton<SecoHttpSession>()` | One shared `CookieContainer` per app |
+| Playwright install | Env `DISABLE_PLAYWRIGHT_INSTALL` or `Playwright:InstallOnStartup` | Skipped on production / MonsterASP |
 
 ## Error handling
 
@@ -293,6 +337,7 @@ The `.csproj` already excludes `Tools/**` from web content copying; a one-time c
 | Unknown supplier | Row fails; error on fetch result |
 | SECO: cannot resolve item / JSON | Row fails |
 | SECO: empty attributes | Row fails |
+| SECO: 401/403 on GetFullProduct | Session re-warmed and retried once |
 | Kennametal / Sandvik / Walter: cannot resolve ID or empty response | Row fails |
 | Walter: `hitCount: 0` | Row fails (**Walter product not found**) |
 | Unknown / stub supplier | Success with no properties; dynamic cells show `#N/A` when columns exist |
@@ -309,13 +354,21 @@ Do **not** place new tool projects under `Tools/` without keeping the `Content R
 
 ## Publish for production
 
-```bash
-dotnet publish AutoToolCatalog.csproj -c Release -o ./publish
-cd publish
-dotnet AutoToolCatalog.dll
+```powershell
+.\scripts\publish-for-ftp.ps1
 ```
 
-Production hosts need Chromium available for Playwright if you rely on SECO rows without links (install browsers on the server or bake them into the deployment image).
+Output folder (default): `C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean`
+
+The script publishes Release DLLs (`UseAppHost=false`), removes `.playwright` binaries, and is ready for MonsterASP upload. SECO rows work without Chromium on the server.
+
+Or publish manually:
+
+```bash
+dotnet publish AutoToolCatalog.csproj -c Release -o ./publish -p:UseAppHost=false
+```
+
+Production hosts need Chromium only if you rely on **Kennametal** or **TaeguTec** browser fallbacks (not SECO).
 
 ### Deploy to MonsterASP.NET (FTP / manual)
 
@@ -363,12 +416,14 @@ Run the workflow manually (**Actions → Run workflow**) and check **Deploy to F
 | .NET version | **.NET 10** |
 | Hosting model | **InProcess** (not OutOfProcess) |
 | Application | **DLL** / `dotnet` — `AutoToolCatalog.dll` via `web.config` |
+| `DISABLE_PLAYWRIGHT_INSTALL` | **`true`** — SECO uses HttpClient only; prevents Node.exe/Chromium install on startup |
+| `ASPNETCORE_ENVIRONMENT` | **`Production`** (if offered) |
 
 Do **not** upload `AutoToolCatalog.exe` or run the site as a standalone EXE in **OutOfProcess** mode — MonsterASP will disable the app pool with *AppPool [site72127] is not enabled on server* ([ASP.NET Core hosting models](https://help.monsterasp.net/books/websites/page/aspnet-core-hosting-model-support)).
 
 If the pool is already disabled, open a **support ticket** in the MonsterASP panel and ask them to **re-enable application pool site72127** (you cannot turn it back on yourself after a crash).
 
-After re-enable: republish with `.\scripts\publish-for-ftp.ps1`, upload `web.config` + `AutoToolCatalog.dll` + dependencies (no `.playwright` folder). Set **ASPNETCORE_ENVIRONMENT** to `Production` in the panel if offered.
+After re-enable: republish with `.\scripts\publish-for-ftp.ps1`, upload `web.config` + `AutoToolCatalog.dll` + dependencies (no `.playwright` folder). Confirm `DISABLE_PLAYWRIGHT_INSTALL=true` and `ASPNETCORE_ENVIRONMENT=Production` in the panel.
 
 ### Docker (optional)
 
@@ -387,14 +442,14 @@ docker run -p 8080:8080 -e ASPNETCORE_URLS=http://+:8080 auto-tool-catalog
 
 ### IIS (Windows)
 
-1. `dotnet publish -c Release -o C:\inetpub\AutoToolCatalog`
+1. `dotnet publish -c Release -o C:\inetpub\AutoToolCatalog -p:UseAppHost=false`
 2. Application Pool: **No Managed Code**
 3. Install [ASP.NET Core Hosting Bundle](https://dotnet.microsoft.com/download/dotnet/10.0)
-4. Plan for Playwright/Chromium if using designation-only SECO rows
+4. SECO rows need **no browser**. Plan for Playwright/Chromium only if using Kennametal or TaeguTec browser fallbacks.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history (2.0.0 = API/SQLite/dynamic columns; 2.1.0 = Kennametal; 2.2.0 = Sandvik; 2.3.0 = Walter; 2.2.1 = processing elapsed time in UI).
+See [CHANGELOG.md](CHANGELOG.md) for version history (2.7.x = SECO HttpClient migration; 2.6.0 = TaeguTec; 2.5.x = MonsterASP FTP deploy; 2.4.0 = SECO master list; 2.3.0 = Walter; 2.2.0 = Sandvik; 2.1.0 = Kennametal; 2.0.0 = API/SQLite/dynamic columns).
 
 ## License
 

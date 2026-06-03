@@ -35,7 +35,10 @@ public sealed partial class SecoHttpSession : IDisposable
                                    | DecompressionMethods.Brotli
         };
 
-        _client = new HttpClient(handler);
+        _client = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(60)
+        };
         _client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
             "Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0");
@@ -63,19 +66,17 @@ public sealed partial class SecoHttpSession : IDisposable
         if (string.IsNullOrWhiteSpace(toolDescription))
             return null;
 
-        await EnsureWarmedUpAsync(fromLink ?? fromDescription ?? "02968233", ct);
+        var normalizedDesignation = NormalizeDesignationForSearch(toolDescription);
+        await EnsureSiteWarmAsync(ct);
 
-        var fromDesignationSearch = await SearchByDesignationAsync(toolDescription, ct);
+        var fromDesignationSearch = await SearchByDesignationAsync(normalizedDesignation, ct);
         if (!string.IsNullOrWhiteSpace(fromDesignationSearch))
             return fromDesignationSearch;
 
-        return await SearchItemNumberAsync(toolDescription, ct);
+        return await SearchItemNumberAsync(normalizedDesignation, ct);
     }
 
-    /// <summary>
-    /// Visits the product page to establish session cookies (TrackSessionId, ARRAffinity, etc.).
-    /// </summary>
-    public async Task EnsureWarmedUpAsync(string itemNumber, CancellationToken ct = default)
+    private async Task EnsureSiteWarmAsync(CancellationToken ct)
     {
         if (_warmedUp) return;
 
@@ -84,8 +85,7 @@ public sealed partial class SecoHttpSession : IDisposable
         {
             if (_warmedUp) return;
 
-            var articlePath = ArticlePathForItemNumber(itemNumber);
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}{articlePath}");
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/");
             request.Headers.TryAddWithoutValidation("Accept",
                 "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
             request.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "document");
@@ -99,6 +99,26 @@ public sealed partial class SecoHttpSession : IDisposable
         {
             _warmupLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Visits the product page to establish session cookies (TrackSessionId, ARRAffinity, etc.).
+    /// </summary>
+    public async Task EnsureWarmedUpAsync(string itemNumber, CancellationToken ct = default)
+    {
+        await EnsureSiteWarmAsync(ct);
+
+        var articlePath = ArticlePathForItemNumber(itemNumber);
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}{articlePath}");
+        request.Headers.TryAddWithoutValidation("Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        request.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "document");
+        request.Headers.TryAddWithoutValidation("Sec-Fetch-Mode", "navigate");
+        request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "same-origin");
+        request.Headers.TryAddWithoutValidation("Referer", $"{BaseUrl}/");
+
+        using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        _ = response.IsSuccessStatusCode || (int)response.StatusCode < 400;
     }
 
     public void ResetWarmup() => _warmedUp = false;
@@ -180,12 +200,15 @@ public sealed partial class SecoHttpSession : IDisposable
 
     private async Task<string?> SearchByDesignationAsync(string designation, CancellationToken ct)
     {
-        var encoded = Uri.EscapeDataString(designation.Trim());
-        var url = $"{BaseUrl}/core/api/Products/SearchProducedProducts?searchTerms={encoded}";
+        var encoded = Uri.EscapeDataString(NormalizeDesignationForSearch(designation));
+        var url =
+            $"{BaseUrl}/core/api/Products/SearchProducedProducts" +
+            $"?searchTerms={encoded}&market={Uri.EscapeDataString(_market)}&language={Uri.EscapeDataString(_language)}";
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.TryAddWithoutValidation("Accept", "application/json, text/javascript, */*; q=0.01");
         request.Headers.TryAddWithoutValidation("Referer", $"{BaseUrl}/");
+        request.Headers.TryAddWithoutValidation("Origin", BaseUrl);
         request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
         request.Headers.TryAddWithoutValidation("X-Seco-api", string.Empty);
         request.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "empty");
@@ -241,7 +264,15 @@ public sealed partial class SecoHttpSession : IDisposable
     }
 
     private static string NormalizeDesignation(string value) =>
-        value.Trim().ToUpperInvariant();
+        NormalizeDesignationForSearch(value).ToUpperInvariant();
+
+    private static string NormalizeDesignationForSearch(string value)
+    {
+        var text = value.Trim();
+        text = text.Replace('\u2010', '-').Replace('\u2011', '-').Replace('\u2012', '-')
+            .Replace('\u2013', '-').Replace('\u2014', '-').Replace('\u2212', '-');
+        return Regex.Replace(text, @"\s+", " ");
+    }
 
     private static string? ExtractItemNumberFromEmbeddedJson(string text)
     {

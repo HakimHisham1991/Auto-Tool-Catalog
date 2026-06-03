@@ -2,6 +2,12 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.7.2] - 2026-06-03
+
+### Fixed
+- SECO designation search hardened: homepage cookie warmup, `market`/`language` on `SearchProducedProducts`, designation dash/whitespace normalization, 60 s HTTP timeout, clearer error messages.
+- `appsettings.Production.json` now includes `Seco:Market` and `Seco:Language` defaults.
+
 ## [2.7.1] - 2026-06-03
 
 ### Fixed
