@@ -7,6 +7,7 @@ C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\kenn_suggest_us.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\kenn_ws.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\playwright.ps1
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\Data\SECO_GLOBAL_ID.xlsx
+C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\Data\TAEGUTEC_CATALOG_NO.xlsx
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\AutoToolCatalog.dll
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\AutoToolCatalog.deps.json
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\AutoToolCatalog.runtimeconfig.json
@@ -16,6 +17,7 @@ C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\ClosedXML.Parser.dll
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\DocumentFormat.OpenXml.dll
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\DocumentFormat.OpenXml.Framework.dll
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\ExcelNumberFormat.dll
+C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\HtmlAgilityPack.dll
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\Microsoft.Bcl.AsyncInterfaces.dll
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\Microsoft.Data.Sqlite.dll
 C:\Users\Public\Documents\Auto-Tool-Catalog\publish_clean\Microsoft.Playwright.dll
