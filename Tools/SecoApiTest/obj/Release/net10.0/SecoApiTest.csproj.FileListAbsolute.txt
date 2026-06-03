@@ -432,3 +432,4 @@ c:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\
 c:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\obj\Release\net10.0\SecoApiTest.pdb
 c:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\obj\Release\net10.0\SecoApiTest.genruntimeconfig.cache
 c:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\obj\Release\net10.0\ref\SecoApiTest.dll
+c:\Users\Public\Documents\Auto-Tool-Catalog\Auto-Tool-Catalog\Tools\SecoApiTest\bin\Release\net10.0\Data\TAEGUTEC_CATALOG.xlsx

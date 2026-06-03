@@ -5,7 +5,6 @@ using AutoToolCatalog.Services;
 using AutoToolCatalog.Services.Kennametal;
 using AutoToolCatalog.Services.Seco;
 using AutoToolCatalog.Services.Sandvik;
-using AutoToolCatalog.Services.TaeguTec;
 using AutoToolCatalog.Services.Walter;
 using Microsoft.AspNetCore.SignalR;
 
@@ -21,7 +20,6 @@ builder.Services.AddScoped<SecoProductDataProvider>();
 builder.Services.AddScoped<KennametalProductDataProvider>();
 builder.Services.AddScoped<SandvikProductDataProvider>();
 builder.Services.AddScoped<WalterProductDataProvider>();
-builder.Services.AddScoped<TaeguTecProductDataProvider>();
 builder.Services.AddScoped<ProductDataProviderRegistry>();
 builder.Services.AddScoped<IScraperService, ScraperService>();
 builder.Services.AddSingleton<ISecoGlobalIdStore>(sp =>
@@ -41,8 +39,6 @@ builder.Services.AddScoped<ISecoApiClient, SecoApiClient>();
 builder.Services.AddScoped<IKennametalApiClient, KennametalApiClient>();
 builder.Services.AddScoped<ISandvikApiClient, SandvikApiClient>();
 builder.Services.AddScoped<IWalterApiClient, WalterApiClient>();
-builder.Services.AddScoped<ITaeguTecApiClient, TaeguTecApiClient>();
-
 builder.Services.AddHttpClient("SECO", c =>
 {
     c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -67,13 +63,6 @@ builder.Services.AddHttpClient("WALTER", c =>
     c.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
 });
 
-builder.Services.AddHttpClient("TAEGUTEC", c =>
-{
-    c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-    c.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-    c.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
-});
-
 var app = builder.Build();
 
 var catalog = app.Services.GetRequiredService<ICatalogRepository>();
@@ -83,7 +72,7 @@ var secoGlobalIds = app.Services.GetRequiredService<ISecoGlobalIdStore>();
 app.Logger.LogInformation("SECO master list loaded: {Count} global IDs", secoGlobalIds.Count);
 
 // Playwright browser install at startup can crash or hang on shared hosting (MonsterASP).
-// SECO uses HttpClient only; Playwright remains for Kennametal / TaeguTec fallbacks.
+// SECO uses HttpClient only; Playwright remains for Kennametal browser fallback.
 if (Environment.GetEnvironmentVariable("DISABLE_PLAYWRIGHT_INSTALL") != "true" &&
     (app.Environment.IsDevelopment() ||
      app.Configuration.GetValue("Playwright:InstallOnStartup", false)))

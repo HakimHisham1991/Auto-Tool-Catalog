@@ -1,8 +1,8 @@
 # Auto Tool Catalog
 
-**Version 2.7.2** · Developed by UPECA PDC
+**Version 2.9.0** · Developed by UPECA PDC
 
-A web application that enriches tooling Excel databases with supplier product data. It imports your catalog, fetches specifications from official supplier APIs, stores raw JSON in SQLite, and exports an updated workbook with **dynamic property columns** per supplier. SECO is fully HTTP-based; Kennametal and TaeguTec may use a Playwright browser bridge when plain HTTP is blocked.
+A web application that enriches tooling Excel databases with supplier product data. It imports your catalog, fetches specifications from official supplier APIs, stores raw JSON in SQLite, and exports an updated workbook with **dynamic property columns** per supplier. SECO is fully HTTP-based; Kennametal may use a Playwright browser bridge when plain HTTP is blocked.
 
 ## Features
 
@@ -26,7 +26,7 @@ A web application that enriches tooling Excel databases with supplier product da
 | Excel | ClosedXML |
 | Catalog storage | SQLite (`Data/catalog.db`) |
 | SECO data | `SecoHttpSession` — shared `HttpClient` + `CookieContainer` (no browser) |
-| Browser bridge (other suppliers) | Playwright/Chromium for Kennametal and TaeguTec when plain HTTP is blocked |
+| Browser bridge (Kennametal) | Playwright/Chromium when plain HTTP is blocked |
 
 ## Architecture (v2.0)
 
@@ -162,24 +162,9 @@ Product pages look like:
 
 Ordering codes in Excel (e.g. `DC165-05-08.000A1-WJ30UU`, `F2162-8`, `A3289DPL-12`) are passed as lowercase `id` values. If Walter returns `hitCount: 0`, the row fails with **Walter product not found**.
 
-### TaeguTec pipeline (IMC e-catalog)
+### TaeguTec (not integrated)
 
-There is **no public JSON/XHR API** for specs on [imc-companies.com/TaeguTec](https://www.imc-companies.com/TaeguTec/ttkCatalog/). Dimensions (DC, OAL, APMX, NOF, grade, etc.) are rendered in the **HTML item page** table.
-
-```
-Link (item.aspx?cat=6127491) or Tool Description (e.g. HSF 6050XLT 250)
-        ↓
-Load item.aspx (HTTP when allowed, else Playwright — site may use Cloudflare)
-        ↓
-Parse HTML specification table → TAEG_DC, TAEG_OAL, TAEG_APMX, …
-        ↓
-SQLite + UI + export
-```
-
-Example product page:  
-`https://www.imc-companies.com/TaeguTec/ttkCatalog/item.aspx?cat=6127491&…` → **HSF 6050XLT 250** (catalog no. `6127491`).
-
-**Tip:** Put the full `item.aspx` link in the Excel **Link** column when possible — fastest and most reliable. Procurement channel: `TAEGUTEC` or any value containing `TAEGU`.
+Rows with procurement channel **TAEGUTEC** (or any value containing `TAEGU`) are recognized on import but **do not fetch live data**. The IMC e-catalog is Cloudflare-protected and unreachable from typical hosting environments, so there is no reliable server-side API. These rows complete as **Success** with dynamic spec columns set to **`#N/A`** (same as other unsupported suppliers).
 
 ### Dynamic columns
 
@@ -189,7 +174,7 @@ Example product page:
 | KENNAMETAL | `KENN_` | Live CAD API (`product-config.net/catalog3/cad`) |
 | SANDVIK | `SAND_` | Live product API (`sandvik.coromant.com/api/productsearch`) |
 | WALTER | `WALT_` | Live product API (`walter-tools.com/api/productsearch/getproduct`) |
-| TAEGUTEC | `TAEG_` | HTML catalog scrape (`imc-companies.com/TaeguTec/ttkCatalog`) |
+| TAEGUTEC | — | Not integrated — spec columns show `#N/A` |
 
 Legacy fixed columns (Type, Shank/Bore Ø, Tool Ø, Corner rad, Flute length, OAL, Edge count) were removed in v2.0. Extra columns in your source Excel are **ignored** on import.
 
@@ -210,7 +195,7 @@ Example layout (your file may have extra columns — they are ignored):
 |-----|------------------|--------------|---|---------------------|
 | 1 | JH142040G2R100.0Z4-HXT | Solid Endmill | … | SECO |
 
-Supplier must normalize to **SECO**, **KENNAMETAL**, **SANDVIK**, **WALTER**, or **TAEGUTEC** (exact match after normalization). If the Supplier cell contains a tool type (e.g. “Solid Endmill”), the importer uses **Procurement channel** when it contains a known vendor name.
+Supplier must normalize to **SECO**, **KENNAMETAL**, **SANDVIK**, or **WALTER** for live API fetch. **TAEGUTEC** is accepted on import but returns `#N/A` for specs. If the Supplier cell contains a tool type (e.g. “Solid Endmill”), the importer uses **Procurement channel** when it contains a known vendor name.
 
 ## Project layout
 
@@ -233,7 +218,7 @@ Auto-Tool-Catalog/
 │   ├── ScraperService.cs         # Orchestration, concurrency (5)
 │   ├── ProductDataProviderRegistry.cs
 │   ├── StubProductDataProvider.cs  # Fallback for unknown suppliers
-│   ├── PlaywrightBootstrap.cs    # Chromium install (Kennametal / TaeguTec only; skipped when DISABLE_PLAYWRIGHT_INSTALL=true)
+│   ├── PlaywrightBootstrap.cs    # Chromium install (Kennametal only; skipped when DISABLE_PLAYWRIGHT_INSTALL=true)
 │   ├── Seco/
 │   │   ├── SecoApiClient.cs
 │   │   ├── SecoHttpSession.cs          # shared HttpClient + CookieContainer + SECO API calls
@@ -294,7 +279,15 @@ SignalR hub: `/hubs/processing` — join with `JoinSession(sessionId)`; events `
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - Windows, Linux, or macOS
-- **Playwright/Chromium** — only needed locally if you process **Kennametal** or **TaeguTec** rows (SECO does not use a browser). On MonsterASP, set `DISABLE_PLAYWRIGHT_INSTALL=true` in the control panel.
+- **Playwright/Chromium** — only needed locally if you process **Kennametal** rows (SECO does not use a browser). On MonsterASP, set `DISABLE_PLAYWRIGHT_INSTALL=true` in the control panel.
+
+### Master data files (`Data/`)
+
+| File | Purpose | Key |
+|------|---------|-----|
+| `SECO_GLOBAL_ID.xlsx` | SECO `Tool Description → Seco Global Number` | Global Number |
+
+Seeded into SQLite at startup and re-seeded automatically when the file changes. Append rows and restart to extend SECO coverage.
 
 ## Run locally
 
@@ -368,7 +361,7 @@ Or publish manually:
 dotnet publish AutoToolCatalog.csproj -c Release -o ./publish -p:UseAppHost=false
 ```
 
-Production hosts need Chromium only if you rely on **Kennametal** or **TaeguTec** browser fallbacks (not SECO).
+Production hosts need Chromium only if you rely on **Kennametal** browser fallback (not SECO).
 
 ### Deploy to MonsterASP.NET (FTP / manual)
 
@@ -445,7 +438,7 @@ docker run -p 8080:8080 -e ASPNETCORE_URLS=http://+:8080 auto-tool-catalog
 1. `dotnet publish -c Release -o C:\inetpub\AutoToolCatalog -p:UseAppHost=false`
 2. Application Pool: **No Managed Code**
 3. Install [ASP.NET Core Hosting Bundle](https://dotnet.microsoft.com/download/dotnet/10.0)
-4. SECO rows need **no browser**. Plan for Playwright/Chromium only if using Kennametal or TaeguTec browser fallbacks.
+4. SECO rows need **no browser**. Plan for Playwright/Chromium only if using Kennametal browser fallback.
 
 ## Changelog
 

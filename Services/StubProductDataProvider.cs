@@ -3,7 +3,7 @@ using AutoToolCatalog.Models;
 namespace AutoToolCatalog.Services;
 
 /// <summary>
-/// Placeholder for suppliers without API integration yet.
+/// Placeholder for suppliers without live API integration (e.g. TAEGUTEC). Returns success with no properties so dynamic columns show #N/A.
 /// </summary>
 public class StubProductDataProvider(string supplier) : IProductDataProvider
 {

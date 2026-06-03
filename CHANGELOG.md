@@ -2,6 +2,24 @@
 
 All notable changes to Auto Tool Catalog are documented in this file.
 
+## [2.9.0] - 2026-06-03
+
+### Removed
+- All TaeguTec live integration (`TaeguTecApiClient`, `TaeguTecBrowserFetcher`, `TaeguTecHtmlParser`, `TaeguTecCatalogStore`, `TAEGUTEC_CATALOG.xlsx`, TaeguTest/TaeguProbe tools). The IMC e-catalog is Cloudflare-blocked from server/datacenter IPs and cannot be fetched reliably.
+
+### Changed
+- **TAEGUTEC** rows are still recognized on Excel import but use `StubProductDataProvider` — processing completes successfully with dynamic spec columns set to **`#N/A`** (no network calls, no Playwright).
+
+## [2.8.0] - 2026-06-03
+
+### Added
+- **TaeguTec offline catalog** (`Data/TAEGUTEC_CATALOG.xlsx`) seeded into SQLite (`taegutec_catalog`) and an in-memory dictionary at startup via new `TaeguTecCatalogStore` — mirrors `SecoGlobalIdStore` but keyed on **Catalog No**. Resolves `Tool Description → Catalog No` with no network call.
+- The master Excel may carry extra spec columns (DC, OAL, APMX, Grade, …) beyond `Catalog No` + `Tool Description`; when present, the row is served **fully offline** as `TAEG_*` properties — required because the IMC e-catalog is Cloudflare-blocked (403) from datacenter IPs and the browser is disabled on MonsterASP.
+
+### Changed
+- `TaeguTecApiClient` now checks the offline catalog first, then HTTP/browser. When the page is unreachable but a Catalog No is known, it still returns `TAEG_CATALOG_NO` + product URL instead of failing the row.
+- `TaeguTecBrowserFetcher` no longer attempts a runtime Chromium install when `DISABLE_PLAYWRIGHT_INSTALL=true` (prevents the MonsterASP app-pool suspension); falls back to the offline catalog.
+
 ## [2.7.2] - 2026-06-03
 
 ### Fixed
